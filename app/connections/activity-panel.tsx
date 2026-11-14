@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { Chip } from "../../components/ui/chip";
+import { ButtonLink } from "../../components/ui/button";
 import { Panel } from "../../components/ui/panel";
-import { dateTime } from "../../lib/dates";
+import { ago, dateTime } from "../../lib/dates";
 import type { EventRow } from "../../server/connections/queries";
 
 const flags: Record<string, { label: string; className: string }> = {
@@ -9,24 +9,27 @@ const flags: Record<string, { label: string; className: string }> = {
   error: { label: "Error", className: "bg-danger! text-on-danger!" },
 };
 
-export function ActivityPanel({ events, expanded, moreHref, lessHref }: {
+export function ActivityPanel({ events, expanded, moreHref, lessHref, now }: {
   events: EventRow[];
   expanded: boolean;
   moreHref: string;
   lessHref: string;
+  now: Date;
 }) {
   const flag = (severity: string) => flags[severity];
   return <Panel heading="Recent activity">
-    {events.length === 0 && <p className="mt-3 text-sm text-muted">No activity yet</p>}
-    {events.map((event, index) => <div className="mt-3 border-t border-line pt-3 text-sm" key={index}>
-      <span className="block text-muted tabular-nums">{dateTime(event.at)}</span>
-      <div className="wrap-anywhere">
-        {flag(event.severity) && <><Chip className={flag(event.severity).className}>{flag(event.severity).label}</Chip>{" "}</>}
-        {event.message}
-        {event.connection && <span className="text-muted"> · {event.connection}</span>}
-      </div>
-    </div>)}
-    {!expanded && events.length === 5 && <Link className="mt-3 inline-block text-sm" href={moreHref}>Show more</Link>}
-    {expanded && events.length > 5 && <Link className="mt-3 inline-block text-sm" href={lessHref}>Show less</Link>}
+    {events.length === 0 && <p className="text-sm text-muted">No activity yet</p>}
+    <div className="divide-y divide-line">
+      {events.map((event, index) => <div className="flex flex-wrap items-baseline justify-between gap-x-3 py-2 text-sm" key={index}>
+        <div className="min-w-0 wrap-anywhere">
+          {flag(event.severity) && <><Chip className={flag(event.severity).className}>{flag(event.severity).label}</Chip>{" "}</>}
+          {event.message}
+          {event.connection && <span className="text-muted"> · {event.connection}</span>}
+        </div>
+        <span className="text-sm whitespace-nowrap text-muted tabular-nums" title={dateTime(event.at)}>{ago(event.at, now)}</span>
+      </div>)}
+    </div>
+    {!expanded && events.length === 5 && <ButtonLink className="mt-3" href={moreHref} size="sm">Show more</ButtonLink>}
+    {expanded && events.length > 5 && <ButtonLink className="mt-3" href={lessHref} size="sm">Show less</ButtonLink>}
   </Panel>;
 }

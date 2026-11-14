@@ -36,6 +36,10 @@ function refresh() {
   for (const path of ["/connections", "/accounts", "/transactions", "/budget", "/"]) revalidatePath(path);
 }
 
+function landing(id: number, fresh: boolean, notice: string) {
+  return "/connections?" + new URLSearchParams(fresh ? { added: String(id), notice } : { notice }).toString();
+}
+
 async function complete(adapter: ProviderAdapter, state: string, payload: unknown) {
   const db = database();
   const known = new Map(connectionList(db).map((connection) => [connection.id, Boolean(connection.enabled)]));
@@ -44,7 +48,7 @@ async function complete(adapter: ProviderAdapter, state: string, payload: unknow
   const lead = fresh ? "Connected." : "Re-authorized.";
   if (!fresh && !known.get(id)) {
     refresh();
-    return lead + " Turn it on to start syncing.";
+    return landing(id, fresh, lead + " Turn it on to start syncing.");
   }
   let notice: string;
   try {
@@ -55,7 +59,7 @@ async function complete(adapter: ProviderAdapter, state: string, payload: unknow
     notice = `${lead} The ${fresh ? "first " : ""}sync did not finish: ${sentence(reason(error))} It will try again on schedule.`;
   }
   refresh();
-  return notice;
+  return landing(id, fresh, notice);
 }
 
 function connectionAdapter(form: FormData) {
@@ -70,6 +74,7 @@ export async function saveProvider(form: FormData) {
   const adapter = adapters.get(text(form.get("provider")));
   if (!adapter) connections("Choose a provider from the list.");
   const interval = readId(form.get("interval"));
+  const then = text(form.get("then")) === "add";
   try {
     const db = database();
     const current = providerList(db).find((provider) => provider.key === adapter.key);
@@ -84,9 +89,10 @@ export async function saveProvider(form: FormData) {
     if (enabled !== Boolean(current.enabled)) setProviderEnabled(db, adapter.key, enabled);
   } catch (error) {
     refresh();
-    connections(reason(error), { provider: adapter.key });
+    connections(reason(error), then ? { provider: adapter.key, then: "add" } : { provider: adapter.key });
   }
   refresh();
+  if (then) redirect("/connections?add=" + encodeURIComponent(adapter.key));
   connections("Settings saved.");
 }
 
@@ -96,21 +102,21 @@ export async function connect(form: FormData) {
   const connection = readId(form.get("connection"));
   const payload: Record<string, string> = {};
   for (const [name, value] of form) if (name.startsWith("field-") && typeof value === "string") payload[name.slice(6)] = value;
-  let notice: string;
+  let href: string;
   try {
-    notice = await complete(adapter, text(form.get("state")), payload);
+    href = await complete(adapter, text(form.get("state")), payload);
   } catch (error) {
     connections(reason(error), connection ? { reauthorize: String(connection) } : { add: adapter.key });
   }
-  connections(notice);
+  redirect(href);
 }
 
 export async function finishWidget(providerKey: string, state: string, payload: unknown):
-  Promise<{ ok: true; notice: string } | { ok: false; message: string }> {
+  Promise<{ ok: true; href: string } | { ok: false; message: string }> {
   const adapter = typeof providerKey === "string" ? adapters.get(providerKey) : undefined;
   if (!adapter || typeof state !== "string") return { ok: false, message: "Choose a provider from the list." };
   try {
-    return { ok: true, notice: await complete(adapter, state, payload) };
+    return { ok: true, href: await complete(adapter, state, payload) };
   } catch (error) {
     return { ok: false, message: reason(error) };
   }

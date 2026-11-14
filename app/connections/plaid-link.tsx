@@ -74,7 +74,7 @@ function useLink(item: Item, resuming: boolean) {
             try {
               sessionStorage.removeItem(storageKey);
             } catch {}
-            router.replace("/connections?notice=" + encodeURIComponent(result.notice));
+            router.replace(result.href);
           } catch {
             setError("Could not finish the connection. Try again.");
           }
@@ -92,7 +92,7 @@ function useLink(item: Item, resuming: boolean) {
 
 function LinkButton({ status, error, pending, open }: ReturnType<typeof useLink>) {
   return <>
-    <Button type="button" variant="primary" disabled={status !== "ready" || pending} onClick={open}>
+    <Button type="button" variant="primary" size="sm" disabled={status !== "ready" || pending} onClick={open}>
       {status === "loading" ? "Loading…" : "Continue to your bank"}
     </Button>
     {pending && <p className="text-sm text-muted" role="status">Saving…</p>}
@@ -113,7 +113,7 @@ function Resume({ item }: { item: Item }) {
     started.current = true;
     link.open();
   });
-  return <div className="flex flex-wrap items-center gap-2.5"><LinkButton {...link} /></div>;
+  return <div className="flex flex-wrap items-center gap-2"><LinkButton {...link} /></div>;
 }
 
 export function PlaidResume() {
