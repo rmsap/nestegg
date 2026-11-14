@@ -9,7 +9,7 @@ import type { Transaction } from "../../server/transactions/queries";
 import { saveTransactionReview } from "./actions";
 import { CategoryChip } from "./category-chip";
 
-export type CategoryChoice = { id: number; name: string };
+export type CategoryChoice = { id: number; name: string; color: string };
 
 const expansionCard = "col-start-2 col-end-[-1] mt-1 rounded-lg border border-line bg-inset p-2.5 compact:row-start-3";
 

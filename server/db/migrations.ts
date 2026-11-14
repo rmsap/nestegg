@@ -130,6 +130,12 @@ const migrations = [
     sql: `ALTER TABLE users ADD COLUMN color_mode TEXT NOT NULL DEFAULT 'system'
       CHECK (color_mode IN ('system', 'light', 'dark'))`,
   },
+  {
+    version: 7,
+    sql: `ALTER TABLE categories ADD COLUMN color TEXT NOT NULL DEFAULT '#245e49'
+      CHECK (length(color) = 7 AND substr(color, 1, 1) = '#'
+        AND substr(color, 2) NOT GLOB '*[^0-9a-f]*')`,
+  },
 ];
 
 export function initialize(db: DatabaseSync) {

@@ -3,8 +3,9 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Chip } from "./chip";
 
-export function ChipPicker({ label, accessibleLabel, optionsLabel, value, options, disabled, onSelect }: {
+export function ChipPicker({ label, color, accessibleLabel, optionsLabel, value, options, disabled, onSelect }: {
   label: string;
+  color?: string;
   accessibleLabel: string;
   optionsLabel: string;
   value: string;
@@ -41,7 +42,7 @@ export function ChipPicker({ label, accessibleLabel, optionsLabel, value, option
         close();
       }
     }}>
-    <Chip as="button" ref={trigger} aria-label={accessibleLabel}
+    <Chip as="button" color={color} ref={trigger} aria-label={accessibleLabel}
       aria-expanded={open} aria-controls={open ? optionsId : undefined}
       aria-disabled={disabled} onClick={() => { if (!disabled) setOpen(!open); }}>
       {label}
