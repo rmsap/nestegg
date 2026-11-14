@@ -27,7 +27,7 @@ function setup(t) {
 
 function adapterFor(provider) {
   const adapter = {
-    key: provider, calls: 0, error: null,
+    key: provider, settings: [], calls: 0, error: null,
     async fetchAccounts() {
       adapter.calls++;
       if (adapter.error) throw adapter.error;

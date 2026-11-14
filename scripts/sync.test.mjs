@@ -22,9 +22,9 @@ function setup(t, { enable = true } = {}) {
   const id = createConnection(db, key, { provider: "fixture", label: "Fixture", credential: secret });
   if (enable) setConnectionEnabled(db, id, true);
   const adapter = {
-    key: "fixture", calls: [], accounts: [], error: null,
-    async fetchAccounts(credential, window) {
-      adapter.calls.push({ credential, window });
+    key: "fixture", settings: [], calls: [], accounts: [], error: null,
+    async fetchAccounts(ctx, credential, window) {
+      adapter.calls.push({ ctx, credential, window });
       if (adapter.error) throw adapter.error;
       return adapter.accounts;
     },

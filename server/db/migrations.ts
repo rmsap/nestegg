@@ -301,6 +301,16 @@ export const migrations = [
       CREATE INDEX transaction_account_date ON transactions(account_id, date);
     `,
   },
+  {
+    version: 6,
+    sql: `
+      ALTER TABLE providers ADD COLUMN settings_encrypted TEXT;
+      ALTER TABLE transactions ADD COLUMN counterparty TEXT;
+      ALTER TABLE transactions ADD COLUMN provider_category TEXT;
+      INSERT INTO providers (key, name, enabled, sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES
+        ('demo', 'Demo Bank', 1, 60, 1, 10);
+    `,
+  },
 ];
 
 export function initialize(db: DatabaseSync) {

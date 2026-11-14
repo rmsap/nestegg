@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHmac, hkdfSync, randomBytes, timingSafeEqual } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -54,4 +54,14 @@ export function decrypt(key: Buffer, purpose: string, payload: string) {
   } catch {
     throw new Error("Could not decrypt stored secret");
   }
+}
+
+export function sign(key: Buffer, purpose: string, data: string) {
+  return createHmac("sha256", subkey(key, purpose)).update(data).digest("base64url");
+}
+
+export function verify(key: Buffer, purpose: string, data: string, signature: string) {
+  const expected = Buffer.from(sign(key, purpose, data));
+  const given = Buffer.from(String(signature));
+  return expected.length === given.length && timingSafeEqual(expected, given);
 }

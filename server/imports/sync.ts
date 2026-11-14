@@ -1,8 +1,9 @@
 import type { DatabaseSync } from "node:sqlite";
 import { recordEvent } from "../events.ts";
 import { decrypt } from "../secrets.ts";
+import { providerSettings } from "./provider-settings.ts";
 import { ProviderError } from "./transaction-provider.ts";
-import type { ProviderAccount, ProviderAdapter } from "./transaction-provider.ts";
+import type { ProviderAccount, ProviderAdapter, ProviderContext } from "./transaction-provider.ts";
 
 type Options = { trigger?: "schedule" | "manual"; jobRunId?: number; now?: Date; request?: typeof fetch };
 type Window = { start: string; end: string };
@@ -65,12 +66,12 @@ function apply(db: DatabaseSync, connectionId: number, syncRunId: number, accoun
         balance_as_of = COALESCE(excluded.balance_as_of, accounts.balance_as_of)
       RETURNING id
     `);
-    const find = db.prepare("SELECT id, date, merchant, amount_cents, kind, pending, removed_at FROM transactions WHERE account_id = ? AND external_id = ?");
+    const find = db.prepare("SELECT id, date, merchant, amount_cents, kind, pending, removed_at, counterparty, provider_category FROM transactions WHERE account_id = ? AND external_id = ?");
     const insert = db.prepare(`
-      INSERT INTO transactions (date, merchant, account_id, amount_cents, kind, pending, external_id, first_seen_sync_run_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO transactions (date, merchant, account_id, amount_cents, kind, pending, external_id, first_seen_sync_run_id, counterparty, provider_category)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    const update = db.prepare("UPDATE transactions SET date = ?, merchant = ?, amount_cents = ?, kind = ?, pending = ?, removed_at = NULL WHERE id = ?");
+    const update = db.prepare("UPDATE transactions SET date = ?, merchant = ?, amount_cents = ?, kind = ?, pending = ?, counterparty = ?, provider_category = ?, removed_at = NULL WHERE id = ?");
     const vanished = db.prepare(`
       SELECT id, external_id FROM transactions
       WHERE account_id = ? AND pending = 1 AND external_id IS NOT NULL AND removed_at IS NULL AND date BETWEEN ? AND ?
@@ -101,15 +102,17 @@ function apply(db: DatabaseSync, connectionId: number, syncRunId: number, accoun
         }
         seen.add(entry.externalId);
         const pending = Number(entry.pending);
+        const counterparty = entry.counterparty ?? null, category = entry.category ?? null;
         const existing = find.get(accountId, entry.externalId);
         if (!existing) {
-          insert.run(entry.date, entry.description, accountId, entry.amountCents, entry.kind, pending, entry.externalId, syncRunId);
+          insert.run(entry.date, entry.description, accountId, entry.amountCents, entry.kind, pending, entry.externalId, syncRunId, counterparty, category);
           added++;
         } else if (existing.pending === 1 || pending === 0) {
           const changed = existing.date !== entry.date || existing.merchant !== entry.description ||
-            existing.amount_cents !== entry.amountCents || existing.kind !== entry.kind || existing.pending !== pending;
+            existing.amount_cents !== entry.amountCents || existing.kind !== entry.kind || existing.pending !== pending ||
+            existing.counterparty !== counterparty || existing.provider_category !== category;
           if (changed || existing.removed_at !== null) {
-            update.run(entry.date, entry.description, entry.amountCents, entry.kind, pending, existing.id);
+            update.run(entry.date, entry.description, entry.amountCents, entry.kind, pending, counterparty, category, existing.id);
             updated++;
           }
         }
@@ -139,10 +142,10 @@ function apply(db: DatabaseSync, connectionId: number, syncRunId: number, accoun
   }
 }
 
-function fail(db: DatabaseSync, connectionId: number, syncRunId: number, error: unknown, credential: string,
+function fail(db: DatabaseSync, connectionId: number, syncRunId: number, error: unknown, secrets: string[],
   actor: "owner" | "scheduler", now: Date) {
   const known = error instanceof ProviderError || error instanceof SyncError;
-  const message = known ? (credential ? error.message.split(credential).join("[redacted]") : error.message) : "Sync failed";
+  const message = known ? secrets.reduce((text, secret) => secret ? text.split(secret).join("[redacted]") : text, error.message) : "Sync failed";
   const auth = error instanceof ProviderError && error.kind === "auth";
   db.exec("BEGIN IMMEDIATE");
   try {
@@ -166,17 +169,29 @@ export async function syncConnection(db: DatabaseSync, key: Buffer, connectionId
   const now = options.now ?? new Date();
   const actor = options.trigger === "schedule" ? "scheduler" : "owner";
   const { syncRunId, encrypted, window } = begin(db, connectionId, adapter, options.jobRunId ?? null, now);
-  let credential = "";
+  const secrets: string[] = [];
   try {
+    let credential: string;
     try {
       credential = decrypt(key, "connection-credential", encrypted);
     } catch {
       throw new SyncError("Could not decrypt stored secret");
     }
+    secrets.push(credential);
+    let settings: Record<string, string>;
+    try {
+      settings = providerSettings(db, key, adapter.key);
+    } catch {
+      throw new SyncError("Could not decrypt stored secret");
+    }
+    for (const field of adapter.settings) {
+      if ((field.kind === "secret" || field.kind === "file") && settings[field.name]) secrets.push(settings[field.name]);
+    }
+    const ctx: ProviderContext = { settings, request: options.request ?? adapter.transport?.(settings) ?? fetch, now };
     // Complete network work before taking a write lock.
-    const accounts = await adapter.fetchAccounts(credential, window, options.request);
+    const accounts = await adapter.fetchAccounts(ctx, credential, window);
     return apply(db, connectionId, syncRunId, accounts, window, actor, now);
   } catch (error) {
-    throw fail(db, connectionId, syncRunId, error, credential, actor, now);
+    throw fail(db, connectionId, syncRunId, error, secrets, actor, now);
   }
 }
