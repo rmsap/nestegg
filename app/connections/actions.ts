@@ -24,15 +24,38 @@ function reason(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong. Try again.";
 }
 
+function sentence(message: string) {
+  return /[.!?]$/.test(message) ? message : message + ".";
+}
+
+function count(number: number, noun: string) {
+  return `${number} ${noun}${number === 1 ? "" : "s"}`;
+}
+
 function refresh() {
   for (const path of ["/connections", "/accounts", "/transactions", "/budget", "/"]) revalidatePath(path);
 }
 
 async function complete(adapter: ProviderAdapter, state: string, payload: unknown) {
-  const known = new Set(connectionList(database()).map((connection) => connection.id));
-  const id = await completeConnection(database(), secretKey(), adapter, state, payload);
+  const db = database();
+  const known = new Map(connectionList(db).map((connection) => [connection.id, Boolean(connection.enabled)]));
+  const id = await completeConnection(db, secretKey(), adapter, state, payload);
+  const fresh = !known.has(id);
+  const lead = fresh ? "Connected." : "Re-authorized.";
+  if (!fresh && !known.get(id)) {
+    refresh();
+    return lead + " Turn it on to start syncing.";
+  }
+  let notice: string;
+  try {
+    if (fresh) setConnectionEnabled(db, id, true);
+    const result = await syncConnection(db, secretKey(), id, adapter, { trigger: "manual" });
+    notice = `${lead} ${count(result.accounts, "account")} and ${count(result.added + result.updated, "transaction")} imported.`;
+  } catch (error) {
+    notice = `${lead} The ${fresh ? "first " : ""}sync did not finish: ${sentence(reason(error))} It will try again on schedule.`;
+  }
   refresh();
-  return known.has(id) ? "Connection re-authorized." : "Connection added. Turn it on to start syncing.";
+  return notice;
 }
 
 function connectionAdapter(form: FormData) {
@@ -47,11 +70,11 @@ export async function saveProvider(form: FormData) {
   const adapter = adapters.get(text(form.get("provider")));
   if (!adapter) connections("Choose a provider from the list.");
   const interval = readId(form.get("interval"));
-  const enabled = form.get("enabled") === "on";
   try {
     const db = database();
     const current = providerList(db).find((provider) => provider.key === adapter.key);
     if (!current) throw new Error("Unknown provider");
+    const enabled = form.get("enabled") === "on" || (!current.configured && adapter.settings.length > 0);
     if (adapter.settings.length) {
       const values: Record<string, string> = {};
       for (const field of adapter.settings) values[field.name] = text(form.get("setting-" + field.name));
@@ -61,7 +84,7 @@ export async function saveProvider(form: FormData) {
     if (enabled !== Boolean(current.enabled)) setProviderEnabled(db, adapter.key, enabled);
   } catch (error) {
     refresh();
-    connections(reason(error), { settings: adapter.key });
+    connections(reason(error), { provider: adapter.key });
   }
   refresh();
   connections("Settings saved.");
@@ -77,7 +100,7 @@ export async function connect(form: FormData) {
   try {
     notice = await complete(adapter, text(form.get("state")), payload);
   } catch (error) {
-    connections(reason(error), connection ? { connect: adapter.key, connection: String(connection) } : { connect: adapter.key });
+    connections(reason(error), connection ? { reauthorize: String(connection) } : { add: adapter.key });
   }
   connections(notice);
 }

@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { createConnection, setConnectionEnabled } from "../server/connections/mutations.ts";
 import { initialize } from "../server/db/migrations.ts";
-import { plaid } from "../server/imports/plaid.ts";
+import { notReadyRetry, plaid } from "../server/imports/plaid.ts";
 import { syncConnection } from "../server/imports/sync.ts";
 import { ProviderError } from "../server/imports/transaction-provider.ts";
 import { checkAdapter } from "./adapter-contract.mjs";
@@ -254,6 +254,48 @@ test("plaid errors map to provider error kinds without leaking secrets or free t
   const garbled = { "/link/token/create": () => ({ text: "not json" }) };
   await assert.rejects(plaid.beginConnect(ctx(transport({ overrides: garbled }).request)), { kind: "invalid" });
   await assert.rejects(plaid.fetchAccounts(ctx(transport().request), "not a credential", window), { kind: "invalid", message: "The Plaid credential is not valid" });
+});
+
+function flaky(failures, error) {
+  const good = transport({ txns: bulk(3) });
+  let seen = 0;
+  const request = async (url, init) => {
+    if (new URL(url).pathname === "/transactions/get" && seen++ < failures) {
+      return new Response(JSON.stringify({ ...error, error_message: FREE }), { status: 400 });
+    }
+    return good.request(url, init);
+  };
+  return { request, calls: () => seen };
+}
+
+const NOT_READY = { error_type: "ITEM_ERROR", error_code: "PRODUCT_NOT_READY" };
+
+test("the first transactions request is retried while plaid is not ready", async (t) => {
+  const saved = { ...notReadyRetry };
+  t.after(() => Object.assign(notReadyRetry, saved));
+  notReadyRetry.delayMs = 0;
+  const recovering = flaky(2, NOT_READY);
+  assert.equal((await plaid.fetchAccounts(ctx(recovering.request), credential, window)).length, 2);
+  assert.equal(recovering.calls(), 3);
+  const stuck = flaky(100, NOT_READY);
+  await assert.rejects(plaid.fetchAccounts(ctx(stuck.request), credential, window),
+    { kind: "unavailable", message: "Plaid is still preparing this connection's transactions" });
+  assert.equal(stuck.calls(), 6);
+});
+
+test("no other plaid error is retried", async (t) => {
+  const saved = { ...notReadyRetry };
+  t.after(() => Object.assign(notReadyRetry, saved));
+  notReadyRetry.delayMs = 0;
+  for (const [error, kind] of [
+    [{ error_type: "ITEM_ERROR", error_code: "ITEM_LOGIN_REQUIRED" }, "auth"],
+    [{ error_type: "API_ERROR", error_code: "INTERNAL_SERVER_ERROR" }, "unavailable"],
+    [{ error_type: "INVALID_REQUEST", error_code: "INVALID_FIELD" }, "invalid"],
+  ]) {
+    const failing = flaky(100, error);
+    await assert.rejects(plaid.fetchAccounts(ctx(failing.request), credential, window), { kind });
+    assert.equal(failing.calls(), 1);
+  }
 });
 
 test("disconnect posts the access token to /item/remove", async () => {

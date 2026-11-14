@@ -31,6 +31,35 @@ export function connectionList(db: DatabaseSync) {
   `).all().map((row) => ({ ...row })) as ConnectionRow[];
 }
 
+export type LinkedAccount = { name: string; kind: string; last_four: string | null; balance_cents: number | null };
+
+export function connectionAccounts(db: DatabaseSync) {
+  const grouped = new Map<number, LinkedAccount[]>();
+  const rows = db.prepare(`
+    SELECT connection_id, name, kind, last_four, balance_cents FROM accounts
+    WHERE connection_id IS NOT NULL AND closed_at IS NULL ORDER BY name, id
+  `).all();
+  for (const { connection_id, ...account } of rows) {
+    const id = Number(connection_id);
+    grouped.set(id, [...grouped.get(id) ?? [], account as LinkedAccount]);
+  }
+  return grouped;
+}
+
+export function readouts(db: DatabaseSync) {
+  const row = db.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM connections WHERE enabled = 1) AS connections,
+      (SELECT COUNT(*) FROM accounts WHERE connection_id IS NOT NULL AND closed_at IS NULL) AS accounts,
+      (SELECT MAX(last_synced_at) FROM connections) AS last_synced_at,
+      (SELECT COUNT(*) FROM connections WHERE enabled = 1 AND status != 'active') AS need_attention
+  `).get();
+  return {
+    connections: Number(row?.connections), accounts: Number(row?.accounts),
+    lastSyncedAt: row?.last_synced_at ? String(row.last_synced_at) : null, needAttention: Number(row?.need_attention),
+  };
+}
+
 export function recentRuns(db: DatabaseSync, connectionId: number, limit = 5) {
   return db.prepare(`
     SELECT s.started_at, s.finished_at, s.status, COALESCE(j.trigger, 'manual') AS trigger,

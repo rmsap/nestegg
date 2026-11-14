@@ -75,7 +75,7 @@ export function Select({ name, options, defaultValue, placeholder = "Choose an o
     items.current[target]?.focus();
   }
 
-  return <div className="select" ref={root}
+  return <div className="relative" ref={root}
     onBlur={(event) => {
       if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
     }}
@@ -85,7 +85,8 @@ export function Select({ name, options, defaultValue, placeholder = "Choose an o
         close();
       }
     }}>
-    <button type="button" ref={trigger} className="select-trigger" role="combobox" aria-label={ariaLabel}
+    <button type="button" ref={trigger} role="combobox" aria-label={ariaLabel}
+      className="flex w-full min-w-0 max-w-full cursor-pointer items-center justify-between gap-2 rounded-md border border-control bg-surface p-2 text-left text-ink aria-disabled:cursor-not-allowed aria-disabled:opacity-60 pointer-coarse:min-h-11"
       aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? optionsId : undefined}
       aria-disabled={disabled}
       onClick={() => {
@@ -99,20 +100,25 @@ export function Select({ name, options, defaultValue, placeholder = "Choose an o
         show();
       }}
       onKeyUp={(event) => { if (event.key === " ") event.preventDefault(); }}>
-      <span className={empty ? "select-placeholder" : undefined}>{empty ? placeholder : selected.label}</span>
-      <ChevronDown size={16} aria-hidden="true" />
+      <span className={`min-w-0 wrap-anywhere ${empty ? "text-muted" : ""}`}>{empty ? placeholder : selected.label}</span>
+      <ChevronDown size={16} aria-hidden="true"
+        className={`shrink-0 transition-transform motion-reduce:transition-none ${open ? "rotate-180" : ""}`} />
     </button>
     {/* A real input, not type="hidden", so native required validation anchors to the trigger. */}
-    <input className="select-proxy" tabIndex={-1} aria-hidden="true" autoComplete="off" name={name}
+    <input className="pointer-events-none absolute inset-x-0 bottom-0 h-px w-full border-0 p-0 opacity-0"
+      tabIndex={-1} aria-hidden="true" autoComplete="off" name={name}
       value={value} required={required} disabled={disabled}
       onChange={() => {}} onFocus={() => trigger.current?.focus()} />
-    {open && <ul id={optionsId} className="select-options" role="listbox" aria-label={ariaLabel}
+    {open && <ul id={optionsId} role="listbox" aria-label={ariaLabel}
+      className="absolute start-0 top-[calc(100%+4px)] z-2 max-h-60 w-max min-w-full max-w-[min(220px,calc(100vw-68px))] list-none overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-popover"
       onClick={(event) => event.preventDefault()} onKeyDown={navigate}>
       {options.map((option, index) => <li key={option.value} role="option" aria-selected={option.value === value}>
         <button type="button" ref={(node) => { items.current[index] = node; }}
+          className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-[5px] px-2.5 py-1.5 text-left wrap-anywhere hover:bg-accent focus-visible:bg-accent data-[selected=true]:bg-accent pointer-coarse:min-h-11"
+          data-selected={option.value === value}
           onClick={() => choose(option.value)}>
           {option.label}
-          {option.value === value && <Check size={15} aria-hidden="true" />}
+          {option.value === value && <Check size={15} aria-hidden="true" className="shrink-0" />}
         </button>
       </li>)}
     </ul>}

@@ -1,9 +1,11 @@
+import type { ReactNode } from "react";
 import { monthLabel } from "../lib/reporting";
 import { Button } from "./ui/button";
 import { Field } from "./ui/field";
 
-export function PageHeading({ title, period }: {
+export function PageHeading({ title, period, action }: {
   title: string;
+  action?: ReactNode;
   period?: { month: string; path: string; filters?: Record<string, string> };
 }) {
   return <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -16,5 +18,6 @@ export function PageHeading({ title, period }: {
       </Field>
       <Button type="submit">Go</Button>
     </form>}
+    {action}
   </header>;
 }

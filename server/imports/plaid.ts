@@ -14,6 +14,11 @@ const AUTH = new Set([
 const KINDS: Record<string, ProviderAccount["kind"]> = { depository: "bank", credit: "credit_card", loan: "loan", investment: "investment", brokerage: "investment" };
 const TRANSFERS = new Set(["TRANSFER_IN", "TRANSFER_OUT", "LOAN_PAYMENTS"]);
 
+const NOT_READY = "Plaid is still preparing this connection's transactions";
+
+// Plaid answers PRODUCT_NOT_READY for a few seconds after a new link.
+export const notReadyRetry = { attempts: 5, delayMs: 3000 };
+
 const invalid = (message: string) => new ProviderError("invalid", message);
 const object = (value: unknown): Json | null => (value && typeof value === "object" && !Array.isArray(value) ? value as Json : null);
 const text = (value: unknown) => (typeof value === "string" && value ? value : undefined);
@@ -22,7 +27,7 @@ function failure(status: number, body: Json | null) {
   const type = text(body?.error_type), found = text(body?.error_code);
   const code = found && /^[A-Z0-9_]{1,64}$/.test(found) ? found : undefined;
   const said = code ? `Plaid: ${code}` : undefined;
-  if (code === "PRODUCT_NOT_READY") return new ProviderError("unavailable", "Plaid is still preparing this connection's transactions");
+  if (code === "PRODUCT_NOT_READY") return new ProviderError("unavailable", NOT_READY);
   if (status === 429 || type === "RATE_LIMIT_EXCEEDED") return new ProviderError("rate_limit", said ?? "Plaid rate limit reached");
   if (code && AUTH.has(code)) return new ProviderError("auth", said!);
   if (type === "INSTITUTION_ERROR" || type === "API_ERROR" || status >= 500) return new ProviderError("unavailable", said ?? "Plaid is unavailable");
@@ -52,6 +57,17 @@ async function call(ctx: ProviderContext, path: string, body: Json): Promise<Jso
   if (!response.ok) throw failure(response.status, json);
   if (!json) throw invalid("Plaid returned an unreadable response");
   return json;
+}
+
+async function firstPage(ctx: ProviderContext, body: Json) {
+  for (let left = notReadyRetry.attempts; ; left--) {
+    try {
+      return await call(ctx, "/transactions/get", body);
+    } catch (error) {
+      if (!(error instanceof ProviderError) || error.message !== NOT_READY || left <= 0) throw error;
+      await new Promise((resolve) => setTimeout(resolve, notReadyRetry.delayMs));
+    }
+  }
 }
 
 function credentialOf(value: string): Credential {
@@ -150,9 +166,10 @@ export const plaid: ProviderAdapter = {
     const raw: unknown[] = [];
     for (let page = 0, total = 0; ; page++) {
       if (page >= MAX_PAGES) throw invalid("Plaid returned too many pages of transactions");
-      const response = await call(ctx, "/transactions/get", {
+      const body = {
         access_token: accessToken, start_date: window.start, end_date: window.end, options: { count: PAGE, offset: raw.length },
-      });
+      };
+      const response = page === 0 ? await firstPage(ctx, body) : await call(ctx, "/transactions/get", body);
       const batch = response.transactions, listed = response.accounts;
       total = Number(response.total_transactions);
       if (!Array.isArray(batch) || !Array.isArray(listed) || !Number.isSafeInteger(total) || total < 0) throw invalid("Plaid returned an unreadable response");

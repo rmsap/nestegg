@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ComponentProps } from "react";
 
 type ButtonStyle = {
-  variant?: "default" | "primary" | "danger";
+  variant?: "default" | "primary" | "danger" | "quiet";
   className?: string;
 };
 
@@ -11,6 +11,7 @@ function buttonClass({ variant = "default", className }: ButtonStyle) {
     default: "border-line bg-surface text-ink",
     primary: "border-primary bg-primary text-on-primary",
     danger: "border-danger bg-danger text-on-danger",
+    quiet: "border-transparent bg-transparent text-primary-text hover:underline",
   };
   return `inline-block cursor-pointer rounded-lg border px-3 py-2 ${variants[variant]} ${className ?? ""}`;
 }

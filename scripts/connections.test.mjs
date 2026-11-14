@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { connectionList, providerList, recentEvents, recentRuns } from "../server/connections/queries.ts";
+import { ago, intervalWords } from "../lib/dates.ts";
+import { connectionAccounts, connectionList, providerList, readouts, recentEvents, recentRuns } from "../server/connections/queries.ts";
+import { connectionStatus, needsKeys, providerStatus } from "../server/connections/status.ts";
 import { initialize } from "../server/db/migrations.ts";
 
 function setup(t) {
@@ -57,4 +59,62 @@ test("recent events are newest first and show no label for a deleted connection"
   const rows = recentEvents(db);
   assert.deepEqual(rows.map((row) => [row.message, row.connection]), [["Third", null], ["Second", null], ["First", "One"]]);
   assert.equal(recentEvents(db, 1).length, 1);
+});
+
+test("connection accounts are grouped by connection and leave out closed and unlinked accounts", (t) => {
+  const db = setup(t);
+  db.exec(`INSERT INTO accounts (name, kind, class, connection_id, external_id, last_four, balance_cents, closed_at) VALUES
+    ('Savings', 'bank', 'asset', 1, 'a', '1234', 5000, NULL), ('Card', 'credit_card', 'liability', 1, 'b', NULL, NULL, NULL),
+    ('Old', 'bank', 'asset', 1, 'c', NULL, 0, '2026-01-01'), ('Other', 'loan', 'liability', 3, 'd', '9', 100, NULL);
+    INSERT INTO accounts (name, kind, class) VALUES ('Manual', 'bank', 'asset');`);
+  const grouped = connectionAccounts(db);
+  assert.deepEqual([...grouped.keys()], [1, 3]);
+  assert.deepEqual(grouped.get(1), [
+    { name: "Card", kind: "credit_card", last_four: null, balance_cents: null },
+    { name: "Savings", kind: "bank", last_four: "1234", balance_cents: 5000 },
+  ]);
+  assert.equal(grouped.has(2), false);
+  assert.equal(Object.getPrototypeOf(grouped.get(3)[0]), Object.prototype);
+});
+
+test("readouts count on connections, open linked accounts, the latest sync and failures", (t) => {
+  const db = setup(t);
+  assert.deepEqual(readouts(db), { connections: 1, accounts: 0, lastSyncedAt: null, needAttention: 0 });
+  db.exec(`UPDATE connections SET last_synced_at = '2026-11-02T00:00:00.000Z' WHERE id = 1;
+    UPDATE connections SET last_synced_at = '2026-11-03T00:00:00.000Z', status = 'error' WHERE id = 2;
+    UPDATE connections SET enabled = 1, status = 'needs_reauth' WHERE id = 3;
+    INSERT INTO accounts (name, kind, class, connection_id, external_id, closed_at) VALUES
+      ('A', 'bank', 'asset', 1, 'a', NULL), ('B', 'bank', 'asset', 3, 'b', NULL), ('C', 'bank', 'asset', 3, 'c', '2026-01-01');
+    INSERT INTO accounts (name, kind, class) VALUES ('Manual', 'bank', 'asset');`);
+  assert.deepEqual(readouts(db), { connections: 2, accounts: 2, lastSyncedAt: "2026-11-03T00:00:00.000Z", needAttention: 1 });
+});
+
+test("connection and provider statuses follow the vocabulary", () => {
+  const row = (enabled, status, last_synced_at) => ({ enabled, status, last_synced_at });
+  const synced = "2026-11-01T00:00:00.000Z";
+  assert.deepEqual([row(0, "error", synced), row(1, "active", null), row(1, "active", synced), row(1, "needs_reauth", synced), row(1, "error", null)]
+    .map(connectionStatus), ["Off", "Ready", "Synced", "Failed", "Failed"]);
+  const on = { enabled: 1 };
+  assert.equal(providerStatus({ enabled: 0 }, true, [row(1, "error", null)]), "Off");
+  assert.equal(providerStatus(on, true, [row(1, "active", synced)]), "Needs keys");
+  assert.equal(providerStatus(on, false, []), "Ready");
+  assert.equal(providerStatus(on, false, [row(1, "active", null), row(0, "error", null)]), "Ready");
+  assert.equal(providerStatus(on, false, [row(1, "active", null), row(1, "active", synced)]), "Synced");
+  assert.equal(providerStatus(on, false, [row(1, "active", synced), row(1, "error", synced)]), "Failed");
+  const required = { settings: [{ name: "k", label: "K", kind: "text", required: true }] };
+  assert.equal(needsKeys(required, { configured: false }), true);
+  assert.equal(needsKeys(required, { configured: true }), false);
+  assert.equal(needsKeys({ settings: [] }, { configured: false }), false);
+});
+
+test("ago and intervalWords read in plain words", () => {
+  const now = new Date("2026-11-10T12:00:00.000Z");
+  const before = (ms) => new Date(now.getTime() - ms).toISOString();
+  assert.deepEqual([0, 59_000, 60_000, 12 * 60_000, 59 * 60_000, 3_600_000, 3 * 3_600_000, 86_400_000, 2 * 86_400_000]
+    .map((ms) => ago(before(ms), now)), ["just now", "just now", "1 min ago", "12 min ago", "59 min ago", "1 hr ago", "3 hr ago", "1 day ago", "2 days ago"]);
+  assert.equal(ago(before(-5000), now), "just now");
+  assert.equal(ago("2026-10-01T12:00:00.000Z", now), "Oct 1, 2026");
+  assert.equal(ago("garbage", now), "garbage");
+  assert.deepEqual([1, 30, 60, 360, 90, 1440, 10080].map(intervalWords),
+    ["1 minute", "30 minutes", "1 hour", "6 hours", "90 minutes", "1 day", "7 days"]);
 });

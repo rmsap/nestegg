@@ -95,9 +95,9 @@ function LinkButton({ status, error, pending, open }: ReturnType<typeof useLink>
     <Button type="button" variant="primary" disabled={status !== "ready" || pending} onClick={open}>
       {status === "loading" ? "Loading…" : "Continue to your bank"}
     </Button>
-    {pending && <small role="status">Saving…</small>}
-    {status === "failed" && <p className="error" role="alert">Could not load the sign-in. Check your connection and reload.</p>}
-    {error && <p className="error" role="alert">{error}</p>}
+    {pending && <p className="text-sm text-muted" role="status">Saving…</p>}
+    {status === "failed" && <p className="w-full text-sm text-danger" role="alert">Could not load the sign-in. Check your connection and reload.</p>}
+    {error && <p className="w-full text-sm text-danger" role="alert">{error}</p>}
   </>;
 }
 
@@ -113,7 +113,7 @@ function Resume({ item }: { item: Item }) {
     started.current = true;
     link.open();
   });
-  return <div className="actions"><LinkButton {...link} /></div>;
+  return <div className="flex flex-wrap items-center gap-2.5"><LinkButton {...link} /></div>;
 }
 
 export function PlaidResume() {
@@ -126,7 +126,7 @@ export function PlaidResume() {
       setItem(null);
     }
   }, []);
-  if (item === undefined) return <p className="muted">Loading…</p>;
+  if (item === undefined) return <p className="text-sm text-muted">Loading…</p>;
   if (item === null) return <p>This sign-in could not be resumed. <Link href="/connections">Start again.</Link></p>;
   return <Resume item={item} />;
 }
