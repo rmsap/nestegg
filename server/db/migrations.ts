@@ -108,6 +108,10 @@ const migrations = [
       CREATE INDEX transaction_date ON transactions(date);
     `,
   },
+  {
+    version: 4,
+    sql: "ALTER TABLE transactions ADD COLUMN memo TEXT",
+  },
 ];
 
 export function initialize(db: DatabaseSync) {

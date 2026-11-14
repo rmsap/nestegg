@@ -1,10 +1,12 @@
 import { Activity } from "../../components/activity";
 import { PageHeading } from "../../components/page-heading";
+import { Button } from "../../components/ui/button";
+import { Field } from "../../components/ui/field";
+import { Panel } from "../../components/ui/panel";
 import { income, transfer, uncategorized } from "../../lib/finance";
 import { categories } from "../../server/budget/queries";
 import { reportingMonth } from "../../lib/reporting";
 import { transactions } from "../../server/transactions/queries";
-import { CategoryChip } from "./category-chip";
 
 export const dynamic = "force-dynamic";
 
@@ -25,23 +27,20 @@ export default async function TransactionsPage({ searchParams }: {
 
   return <>
     <PageHeading title="Transactions" period={{ month, path: "/transactions", filters: { q: query, category: selected } }} />
-    <section className="panel">
+    <Panel>
       <form className="fields" action="/transactions">
         <input type="hidden" name="month" value={month} />
-        <label>Search<input name="q" type="search" defaultValue={query} placeholder="Merchant or account" /></label>
-        <label>Category<select name="category" defaultValue={selected}>
-          <option value="">All categories</option>
-          {[...new Set([...list.map((category) => category.name), uncategorized, income, transfer])].map((name) =>
-            <option key={name}>{name}</option>)}
-        </select></label>
-        <button className="primary">Filter</button>
+        <Field label="Search"><input name="q" type="search" defaultValue={query} placeholder="Merchant or account" /></Field>
+        <Field label="Category">
+          <select name="category" defaultValue={selected}>
+            <option value="">All categories</option>
+            {[...new Set([...list.map((category) => category.name), uncategorized, income, transfer])].map((name) =>
+              <option key={name}>{name}</option>)}
+          </select>
+        </Field>
+        <Button type="submit" variant="primary">Filter</Button>
       </form>
-      <Activity list={filtered} renderCategory={(transaction) =>
-        transaction.kind === "expense"
-          ? <CategoryChip transactionId={transaction.id} merchant={transaction.merchant}
-              category={transaction.category} categoryId={transaction.category_id} choices={categoryChoices} />
-          : <span className="category-chip">{transaction.category}</span>
-      } />
-    </section>
+      <Activity list={filtered} categoryChoices={categoryChoices} />
+    </Panel>
   </>;
 }

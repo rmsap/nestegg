@@ -3,9 +3,10 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { initialize } from "../server/db/migrations.ts";
 
-const directory = join(process.cwd(), "data", "demo");
+const directory = process.env.NESTEGG_DATA_DIR ?? join(process.cwd(), "data");
 mkdirSync(directory, { recursive: true });
-const db = new DatabaseSync(join(directory, "nestegg.sqlite"));
+const path = join(directory, "nestegg.sqlite");
+const db = new DatabaseSync(path);
 try {
   initialize(db);
   db.exec("BEGIN IMMEDIATE");
@@ -50,7 +51,7 @@ try {
       `);
     }
     db.exec("COMMIT");
-    if (!occupied) console.log("Seeded data/demo/nestegg.sqlite.");
+    if (!occupied) console.log("Seeded " + path);
   } catch (error) {
     db.exec("ROLLBACK");
     throw error;

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Activity } from "../components/activity";
 import { Metric } from "../components/metric";
 import { PageHeading } from "../components/page-heading";
+import { Panel } from "../components/ui/panel";
 import { budgetTotals, categories, uncategorizedSpending } from "../server/budget/queries";
 import { reportingMonth } from "../lib/reporting";
 import { accounts, knownNetWorth } from "../server/accounts/queries";
@@ -45,12 +46,9 @@ export default async function OverviewPage({ searchParams }: {
       {hasBalances && <Metric label={allBalances ? "Net worth" : "Net worth from known balances"}
         value={knownNetWorth(accountList)} />}
     </div>
-    <section className="panel">
-      <div className="section-heading">
-        <h2>Recent activity</h2>
-        <Link href={"/transactions?month=" + month}>All transactions</Link>
-      </div>
+    <Panel heading="Recent activity"
+      headingAside={<Link href={"/transactions?month=" + month}>All transactions</Link>}>
       <Activity list={recent} />
-    </section>
+    </Panel>
   </>;
 }

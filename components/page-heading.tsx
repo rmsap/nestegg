@@ -1,4 +1,6 @@
 import { monthLabel } from "../lib/reporting";
+import { Button } from "./ui/button";
+import { Field } from "./ui/field";
 
 export function PageHeading({ title, period }: {
   title: string;
@@ -9,10 +11,10 @@ export function PageHeading({ title, period }: {
     {period && <form className="actions" action={period.path} key={period.month}>
       {Object.entries(period.filters ?? {}).map(([name, value]) =>
         <input key={name} type="hidden" name={name} value={value} />)}
-      <label>Reporting month<input name="month" type="month" defaultValue={period.month}
-        min="1000-01" max="9999-12" required /></label>
-      <button>Go</button>
+      <Field label="Reporting month">
+        <input name="month" type="month" defaultValue={period.month} min="1000-01" max="9999-12" required />
+      </Field>
+      <Button type="submit">Go</Button>
     </form>}
-    {process.env.NESTEGG_DEMO === "1" && <span className="demo">Sample data</span>}
   </header>;
 }
