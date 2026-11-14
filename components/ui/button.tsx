@@ -10,7 +10,7 @@ function buttonClass({ variant = "default", className }: ButtonStyle) {
   const variants = {
     default: "border-line bg-surface text-ink",
     primary: "border-primary-border bg-primary text-on-primary",
-    danger: "border-danger bg-danger text-on-danger",
+    danger: "border-danger-fill bg-danger-fill text-on-danger",
   };
   return `inline-block cursor-pointer rounded-lg border px-3 py-2 ${variants[variant]} ${className ?? ""}`;
 }

@@ -1,4 +1,10 @@
 export const defaultPrimaryColor = "#245e49";
+export const colorModes = ["system", "light", "dark"] as const;
+export type ColorMode = (typeof colorModes)[number];
+
+export function parseColorMode(value: unknown): ColorMode | null {
+  return colorModes.find((mode) => mode === value) ?? null;
+}
 
 export function parsePrimaryColor(value: unknown) {
   return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)
@@ -22,6 +28,10 @@ function luminance(rgb: number[]) {
   return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
 }
 
+function hex(channels: number[]) {
+  return "#" + channels.map((channel) => channel.toString(16).padStart(2, "0")).join("");
+}
+
 export function themeVariables(value: string) {
   const color = primaryColor(value);
   const channels = rgb(color);
@@ -33,11 +43,19 @@ export function themeVariables(value: string) {
   for (let shade = 95; 1.05 / (luminance(accent) + 0.05) < 7; shade -= 5) {
     accent = channels.map((channel) => Math.round(channel * shade / 100));
   }
-  const accentColor = "#" + accent.map((channel) => channel.toString(16).padStart(2, "0")).join("");
+  let darkAccent = channels;
+  for (let tint = 5; (luminance(darkAccent) + 0.05) / 0.05 < 10; tint += 5) {
+    darkAccent = channels.map((channel) => Math.round(channel + (255 - channel) * tint / 100));
+  }
+  const accentColor = hex(accent);
+  const darkAccentColor = hex(darkAccent);
   return {
     "--theme-primary": color,
     "--theme-on-primary": whiteContrast >= blackContrast ? "#ffffff" : "#000000",
     "--theme-primary-border": whiteContrast >= 3.5 ? color : accentColor,
     "--theme-accent-strong": accentColor,
+    "--theme-primary-border-dark": (light + 0.05) / (luminance([30, 34, 32]) + 0.05) >= 3.5
+      ? color : darkAccentColor,
+    "--theme-accent-strong-dark": darkAccentColor,
   };
 }
