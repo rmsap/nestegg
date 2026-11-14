@@ -126,8 +126,29 @@ input, select, textarea {
   color: var(--ink);
 }
 textarea { resize: vertical; }
-.fields .check { flex: 0 0 auto; display: flex; flex-direction: row-reverse; align-items: center; gap: 8px; }
-.check input { width: 18px; height: 18px; padding: 0; }
+.switch { position: relative; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.fields .switch { flex: 0 0 auto; min-height: 38px; }
+.switch input { position: absolute; inset-inline-start: 0; width: 38px; height: 22px; margin: 0; padding: 0; opacity: 0; cursor: pointer; }
+.switch-track { flex: none; position: relative; width: 38px; height: 22px; border-radius: 999px; background: #c9d8cd; transition: background .15s; }
+.switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  inset-inline-start: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 2px #243b3130;
+  transition: transform .15s;
+}
+.switch input:checked + .switch-track { background: var(--green); }
+.switch input:checked + .switch-track::after { transform: translateX(16px); }
+.switch input:focus-visible + .switch-track { outline: 3px solid #b56836; outline-offset: 3px; }
+.switch input:disabled + .switch-track { opacity: .6; }
+@media (prefers-reduced-motion: reduce) {
+  .switch-track, .switch-track::after { transition: none; }
+}
 .error { color: #923f2e; font-size: .875rem; }
 .chip-warning { background: #ffe49a; color: #694a00; }
 .chip-danger { background: #923f2e; color: white; }
@@ -265,7 +286,7 @@ summary { cursor: pointer; }
 .chip-button { cursor: pointer; user-select: none; touch-action: manipulation; }
 .chip-button:hover { border-color: var(--green); }
 .chip-picker { position: relative; width: fit-content; max-width: 100%; }
-.chip-options {
+.chip-options, .select-options {
   position: absolute;
   z-index: 2;
   inset-inline-start: 0;
@@ -283,7 +304,7 @@ summary { cursor: pointer; }
   background: var(--surface);
   box-shadow: 0 4px 12px #243b3120;
 }
-.chip-options button {
+.chip-options button, .select-options button {
   display: block;
   width: 100%;
   padding: 6px 10px;
@@ -292,16 +313,48 @@ summary { cursor: pointer; }
   text-align: left;
   overflow-wrap: anywhere;
 }
-.chip-options button:hover, .chip-options button[aria-current="true"] { background: var(--accent); }
+.chip-options button:hover, .chip-options button[aria-current="true"],
+.select-options button:hover, .select-options button:focus { background: var(--accent); }
+.select { position: relative; min-width: 0; }
+.select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  padding: 8px;
+  border: 1px solid #c9d8cd;
+  border-radius: 6px;
+  background: white;
+  text-align: left;
+}
+.select-trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.select-trigger svg, .select-options svg { flex: none; }
+.select-trigger[aria-expanded="true"] svg { transform: rotate(180deg); }
+.select-trigger[aria-disabled="true"] { opacity: .6; cursor: default; }
+.select-placeholder { color: var(--muted); }
+.select-options { max-width: min(420px, calc(100vw - 68px)); }
+.select-options button { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.select-proxy {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
 .category-editor small { display: block; }
 .category-editor [role="alert"] { color: #923f2e; }
 @media (pointer: coarse) {
-  .chip-button, .chip-options button { min-height: 44px; }
+  .chip-button, .chip-options button, .select-trigger, .select-options button { min-height: 44px; }
   .review-trigger { min-width: 44px; min-height: 44px; }
   .activity { --review-width: 44px; }
   .connection-row .button, .connection-row .remove summary, .runs summary, .connect .button { min-height: 44px; }
   .connection-row .remove summary, .runs summary { display: inline-flex; align-items: center; }
-  .check input { width: 24px; height: 24px; }
+  .switch { min-height: 44px; }
 }
 .actions [role="alert"] { flex-basis: 100%; }
 .balance-row { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }

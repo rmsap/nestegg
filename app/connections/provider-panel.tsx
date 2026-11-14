@@ -2,6 +2,7 @@ import { Button, ButtonLink } from "../../components/ui/button";
 import { Chip } from "../../components/ui/chip";
 import { Field } from "../../components/ui/field";
 import { Panel } from "../../components/ui/panel";
+import { Switch } from "../../components/ui/switch";
 import { beginConnection } from "../../server/connections/mutations";
 import type { ConnectionRow as Connection, ProviderRow, SyncRunRow } from "../../server/connections/queries";
 import { database } from "../../server/db/connection";
@@ -65,9 +66,7 @@ export function ProviderPanel({ adapter, provider, connections, runs, settingsOp
         <input name="interval" type="number" min={provider.min_sync_interval_minutes} max="10080" step="1"
           defaultValue={provider.sync_interval_minutes} required />
       </Field>
-      <Field label="Provider on" className="check">
-        <input name="enabled" type="checkbox" defaultChecked={Boolean(provider.enabled)} />
-      </Field>
+      <Switch name="enabled" label="Provider on" defaultChecked={Boolean(provider.enabled)} />
       <Button type="submit" variant="primary">Save settings</Button>
     </form>}
     {connections.length === 0 && <p className="muted">No connections yet.</p>}
