@@ -30,27 +30,23 @@ npm.cmd run build
 - `server/budget/` and `server/transactions/` contain SQLite queries and writes for each feature. The form actions parse input and delegate to these modules.
 - `server/db/` handles the SQLite connection and numbered migrations. `server/accounts/` reads persisted accounts. `scripts/seed-demo.mjs` loads sample rows separately, and `server/demo.ts` holds the sample goals.
 
-## Teller and deployment
+## Deployment
 
 - Each project partner runs one independent instance on their own tailnet, with a separate database, owner sign-in, bank connections, secrets, and backups.
-- The manual sandbox importer implements the documented Teller API. Sandbox availability is unverified following reports that Teller withdrew its API in July 2026. Before connecting a real bank, add owner authentication, encrypted enrollment tokens, and certificate configuration for the selected provider.
+- Before connecting a real bank, add owner authentication and certificate configuration for the selected provider.
 - Ubuntu Server on a mini PC is the preferred first deployment target. Check the host architecture and build the matching image. Use `linux/amd64` for an x86-64 mini PC and `linux/arm64` for a 64-bit ARM host. Each host can serve its own HTTPS address through Tailscale Serve.
 
 This prototype uses Node's built-in SQLite driver and USD integer cents. The project plan covers the remaining work, including account sync, history, goal allocations, CSV workflows, authentication, PWA installation, Docker, and Tailscale.
 
 ### Transaction providers
 
-`server/imports/transaction-provider.ts` defines the normalized accounts and transactions an adapter returns. `server/imports/sync.ts` fetches and imports one batch atomically. A new provider implements the same interface and can use the importer directly. Account identity is scoped to the provider and transaction identity to the imported account. A provider switch leaves both sets of records available under their own identities, so overlapping history needs explicit reconciliation.
+`server/imports/transaction-provider.ts` defines the adapter contract and the normalized accounts and transactions an adapter returns, and `server/imports/providers.ts` registers adapters by provider key. An adapter has four operations: begin and complete a connection, fetch accounts for a date window, and optionally disconnect. Each provider's settings are stored encrypted. `server/imports/sync.ts` syncs one connection: it fetches a date window with the decrypted credential and settings, then imports the batch atomically. A built-in demo provider generates deterministic accounts and transactions, including pending rows and failure scenarios, so the whole flow works without a bank. A new provider implements the adapter contract, passes `scripts/adapter-contract.mjs`, and registers itself. Account identity is scoped to the connection and transaction identity to the imported account. A connection switch leaves both sets of records available under their own identities, so overlapping history needs explicit reconciliation.
 
-If you already have a Teller Sandbox enrollment token, place it in the ignored `.env.local` file as `TELLER_SANDBOX_TOKEN`. An Application ID is used for enrollment and cannot run the importer on its own. Run the following from the project directory:
+Enabled connections sync automatically on each provider's interval while the server is running. Set `NESTEGG_SCHEDULER=0` to turn the scheduler off. `npm run sync` syncs every enabled connection once from the command line, or one connection when given its ID.
 
-```powershell
-npm.cmd run sync:teller-sandbox
-$env:NESTEGG_DATA_DIR = 'data/teller-sandbox'
-npm.cmd run dev
-```
+Posted expenses appear in Uncategorized until assigned. A pending transaction that posts under the same provider ID updates in place. If the provider assigns a different ID on posting, the posted item counts once. The old pending item disappears from the ledger once a later sync no longer returns it.
 
-Choose the reporting month containing the imported transactions. The importer targets its own SQLite file and accepts only sandbox tokens and USD accounts. Posted expenses appear in Uncategorized until assigned. A pending transaction that posts under the same provider ID updates in place. If the provider assigns a different ID on posting, the posted item counts once and the old pending item can still appear in the ledger.
+Stored credentials are encrypted with a key from `NESTEGG_SECRET_KEY` (base64 of 32 bytes) or, when that is unset, from `data/secret.key`, which is created on first use. Back the key up together with the database. Without it the stored credentials cannot be decrypted.
 
 - [Project plan](docs/PROJECT_PLAN.md)
 - [Original interface mock](docs/UI_MOCKS.html)

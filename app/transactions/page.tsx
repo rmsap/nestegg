@@ -7,6 +7,8 @@ import { income, transfer, uncategorized } from "../../lib/finance";
 import { categories } from "../../server/budget/queries";
 import { reportingMonth } from "../../lib/reporting";
 import { transactions } from "../../server/transactions/queries";
+import { database } from "../../server/db/connection";
+import { currentUser } from "../../server/session";
 
 export const dynamic = "force-dynamic";
 
@@ -18,9 +20,11 @@ export default async function TransactionsPage({ searchParams }: {
   const selected = typeof params.category === "string" ? params.category : "";
   const search = query.trim().toLowerCase();
   const month = reportingMonth(params.month);
-  const list = categories(month);
+  const user = await currentUser();
+  const db = database();
+  const list = categories(db, user.id, month);
   const categoryChoices = list.map(({ id, name, color }) => ({ id, name, color }));
-  const filtered = transactions(month).filter((item) =>
+  const filtered = transactions(db, user.id, month).filter((item) =>
     (!selected || item.category === selected) &&
     `${item.merchant} ${item.account}`.toLowerCase().includes(search)
   );

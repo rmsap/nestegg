@@ -3,18 +3,22 @@ import { PageHeading } from "../../components/page-heading";
 import { Panel } from "../../components/ui/panel";
 import { money } from "../../lib/finance";
 import { accounts, knownNetWorth } from "../../server/accounts/queries";
+import { database } from "../../server/db/connection";
+import { currentUser } from "../../server/session";
 
 export const dynamic = "force-dynamic";
 
 const groups = [
   { kind: "bank", name: "Bank Accounts" },
   { kind: "credit_card", name: "Credit Cards" },
+  { kind: "loan", name: "Loans" },
   { kind: "investment", name: "Investments" },
   { kind: "other", name: "Other Accounts" },
 ] as const;
 
-export default function AccountsPage() {
-  const list = accounts();
+export default async function AccountsPage() {
+  const user = await currentUser();
+  const list = accounts(database(), user.id);
   const hasBalances = list.some((account) => account.balance_cents !== null);
   const allBalances = list.every((account) => account.balance_cents !== null);
   return <>

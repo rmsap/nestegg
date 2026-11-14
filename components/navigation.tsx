@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeftRight, Landmark, LayoutDashboard, Settings, Target, Wallet } from "lucide-react";
+import { ArrowLeftRight, Landmark, LayoutDashboard, Link2, Settings, Target, Wallet } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -9,6 +9,7 @@ const pages = [
   { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
   { href: "/budget", label: "Budget", icon: Wallet },
   { href: "/accounts", label: "Accounts", icon: Landmark },
+  { href: "/connections", label: "Connections", icon: Link2 },
   { href: "/goals", label: "Goals", icon: Target },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

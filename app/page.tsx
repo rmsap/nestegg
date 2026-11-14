@@ -8,6 +8,8 @@ import { budgetTotals, categories, uncategorizedSpending } from "../server/budge
 import { reportingMonth } from "../lib/reporting";
 import { accounts, knownNetWorth } from "../server/accounts/queries";
 import { transactions } from "../server/transactions/queries";
+import { database } from "../server/db/connection";
+import { currentUser } from "../server/session";
 
 export const dynamic = "force-dynamic";
 
@@ -32,9 +34,11 @@ export default async function OverviewPage({ searchParams }: {
   }
 
   const month = reportingMonth(filters.month);
-  const { planned, spent } = budgetTotals(categories(month), uncategorizedSpending(month));
-  const recent = transactions(month).slice(0, 5);
-  const accountList = accounts();
+  const user = await currentUser();
+  const db = database();
+  const { planned, spent } = budgetTotals(categories(db, user.id, month), uncategorizedSpending(db, user.id, month));
+  const recent = transactions(db, user.id, month).slice(0, 5);
+  const accountList = accounts(db, user.id);
   const hasBalances = accountList.some((account) => account.balance_cents !== null);
   const allBalances = accountList.every((account) => account.balance_cents !== null);
 

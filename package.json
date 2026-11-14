@@ -8,8 +8,8 @@
   "scripts": {
     "dev": "next dev --webpack --hostname 127.0.0.1",
     "seed:demo": "node --experimental-strip-types scripts/seed-demo.mjs",
-    "sync:teller-sandbox": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/sync-teller-sandbox.mjs",
-    "test": "node --experimental-strip-types --test scripts/imports.test.mjs",
+    "sync": "node --experimental-strip-types scripts/sync.mjs",
+    "test": "node --experimental-strip-types --test scripts/imports.test.mjs scripts/sync.test.mjs scripts/secrets.test.mjs scripts/schedule.test.mjs scripts/providers.test.mjs scripts/plaid.test.mjs scripts/connections.test.mjs scripts/users.test.mjs scripts/isolation.test.mjs",
     "build": "next build --webpack",
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit"

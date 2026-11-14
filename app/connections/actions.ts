@@ -1,0 +1,166 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { readId } from "../../lib/forms";
+import { completeConnection, disconnectAndDelete, setConnectionEnabled } from "../../server/connections/mutations";
+import { connectionList, providerList } from "../../server/connections/queries";
+import { database } from "../../server/db/connection";
+import { setProviderEnabled, setProviderSettings, setSyncInterval } from "../../server/imports/provider-settings";
+import { adapters } from "../../server/imports/providers";
+import type { ProviderAdapter } from "../../server/imports/transaction-provider";
+import { syncConnection } from "../../server/imports/sync";
+import { secretKey } from "../../server/secret-key";
+import { currentUser } from "../../server/session";
+
+function connections(message: string, params: Record<string, string> = {}): never {
+  redirect("/connections?" + new URLSearchParams({ notice: message, ...params }).toString());
+}
+
+function text(value: FormDataEntryValue | null) {
+  return typeof value === "string" ? value : "";
+}
+
+function reason(error: unknown) {
+  return error instanceof Error ? error.message : "Something went wrong. Try again.";
+}
+
+function sentence(message: string) {
+  return /[.!?]$/.test(message) ? message : message + ".";
+}
+
+function count(number: number, noun: string) {
+  return `${number} ${noun}${number === 1 ? "" : "s"}`;
+}
+
+function refresh() {
+  for (const path of ["/connections", "/accounts", "/transactions", "/budget", "/"]) revalidatePath(path);
+}
+
+function landing(id: number, fresh: boolean, notice: string) {
+  return "/connections?" + new URLSearchParams(fresh ? { added: String(id), notice } : { notice }).toString();
+}
+
+async function complete(userId: number, adapter: ProviderAdapter, state: string, payload: unknown) {
+  const db = database();
+  const known = new Map(connectionList(db, userId).map((connection) => [connection.id, Boolean(connection.enabled)]));
+  const id = await completeConnection(db, userId, secretKey(), adapter, state, payload);
+  const fresh = !known.has(id);
+  const lead = fresh ? "Connected." : "Re-authorized.";
+  if (!fresh && !known.get(id)) {
+    refresh();
+    return landing(id, fresh, lead + " Turn it on to start syncing.");
+  }
+  let notice: string;
+  try {
+    if (fresh) setConnectionEnabled(db, userId, id, true);
+    const result = await syncConnection(db, secretKey(), id, adapter, { trigger: "manual" });
+    notice = `${lead} ${count(result.accounts, "account")} and ${count(result.added + result.updated, "transaction")} imported.`;
+  } catch (error) {
+    notice = `${lead} The ${fresh ? "first " : ""}sync did not finish: ${sentence(reason(error))} It will try again on schedule.`;
+  }
+  refresh();
+  return landing(id, fresh, notice);
+}
+
+function connectionAdapter(userId: number, form: FormData) {
+  const id = readId(form.get("connection"));
+  const row = connectionList(database(), userId).find((connection) => connection.id === id);
+  const adapter = row && adapters.get(row.provider);
+  if (!adapter) connections("That connection no longer exists.");
+  return { id, adapter };
+}
+
+export async function saveProvider(form: FormData) {
+  const user = await currentUser();
+  const adapter = adapters.get(text(form.get("provider")));
+  if (!adapter) connections("Choose a provider from the list.");
+  const interval = readId(form.get("interval"));
+  const then = text(form.get("then")) === "add";
+  try {
+    const db = database();
+    const current = providerList(db, user.id).find((provider) => provider.key === adapter.key);
+    if (!current) throw new Error("Unknown provider");
+    const enabled = form.get("enabled") === "on" || (!current.configured && adapter.settings.length > 0);
+    if (adapter.settings.length) {
+      const values: Record<string, string> = {};
+      for (const field of adapter.settings) values[field.name] = text(form.get("setting-" + field.name));
+      setProviderSettings(db, user.id, secretKey(), adapter, values);
+    }
+    if (interval !== current.sync_interval_minutes) setSyncInterval(db, user.id, adapter.key, interval);
+    if (enabled !== Boolean(current.enabled)) setProviderEnabled(db, user.id, adapter.key, enabled);
+  } catch (error) {
+    refresh();
+    connections(reason(error), then ? { provider: adapter.key, then: "add" } : { provider: adapter.key });
+  }
+  refresh();
+  if (then) redirect("/connections?add=" + encodeURIComponent(adapter.key));
+  connections("Settings saved.");
+}
+
+export async function connect(form: FormData) {
+  const user = await currentUser();
+  const adapter = adapters.get(text(form.get("provider")));
+  if (!adapter) connections("Choose a provider from the list.");
+  const connection = readId(form.get("connection"));
+  const payload: Record<string, string> = {};
+  for (const [name, value] of form) if (name.startsWith("field-") && typeof value === "string") payload[name.slice(6)] = value;
+  let href: string;
+  try {
+    href = await complete(user.id, adapter, text(form.get("state")), payload);
+  } catch (error) {
+    connections(reason(error), connection ? { reauthorize: String(connection) } : { add: adapter.key });
+  }
+  redirect(href);
+}
+
+export async function finishWidget(providerKey: string, state: string, payload: unknown):
+  Promise<{ ok: true; href: string } | { ok: false; message: string }> {
+  const user = await currentUser();
+  const adapter = typeof providerKey === "string" ? adapters.get(providerKey) : undefined;
+  if (!adapter || typeof state !== "string") return { ok: false, message: "Choose a provider from the list." };
+  try {
+    return { ok: true, href: await complete(user.id, adapter, state, payload) };
+  } catch (error) {
+    return { ok: false, message: reason(error) };
+  }
+}
+
+export async function toggleConnection(form: FormData) {
+  const user = await currentUser();
+  const id = readId(form.get("connection"));
+  const enabled = form.get("enabled") === "1";
+  try {
+    setConnectionEnabled(database(), user.id, id, enabled);
+  } catch (error) {
+    connections(reason(error));
+  }
+  refresh();
+  connections(enabled ? "Connection turned on." : "Connection turned off.");
+}
+
+export async function syncNow(form: FormData) {
+  const user = await currentUser();
+  const { id, adapter } = connectionAdapter(user.id, form);
+  let notice: string;
+  try {
+    const result = await syncConnection(database(), secretKey(), id, adapter, { trigger: "manual" });
+    notice = `Synced: ${result.added} added, ${result.updated} updated, ${result.removed} removed.`;
+  } catch (error) {
+    notice = reason(error);
+  }
+  refresh();
+  connections(notice);
+}
+
+export async function removeConnection(form: FormData) {
+  const user = await currentUser();
+  const { id, adapter } = connectionAdapter(user.id, form);
+  try {
+    await disconnectAndDelete(database(), user.id, secretKey(), adapter, id);
+  } catch (error) {
+    connections(reason(error));
+  }
+  refresh();
+  connections("Connection removed.");
+}

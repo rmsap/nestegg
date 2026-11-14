@@ -5,6 +5,8 @@ import { reportingMonth } from "../../lib/reporting";
 import Link from "next/link";
 import { money } from "../../lib/finance";
 import { budgetIncome, budgetTotals, categories, uncategorizedSpending } from "../../server/budget/queries";
+import { database } from "../../server/db/connection";
+import { currentUser } from "../../server/session";
 import { CategoryList } from "./category-list";
 
 export const dynamic = "force-dynamic";
@@ -14,9 +16,11 @@ export default async function BudgetPage({ searchParams }: {
 }) {
   const { edit, notice, month: selectedMonth } = await searchParams;
   const month = reportingMonth(selectedMonth);
-  const list = categories(month);
-  const expectedIncome = budgetIncome(month);
-  const uncategorized = uncategorizedSpending(month);
+  const user = await currentUser();
+  const db = database();
+  const list = categories(db, user.id, month);
+  const expectedIncome = budgetIncome(db, user.id, month);
+  const uncategorized = uncategorizedSpending(db, user.id, month);
   const { planned, spent } = budgetTotals(list, uncategorized);
 
   return <>

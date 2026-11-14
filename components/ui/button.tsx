@@ -3,22 +3,27 @@ import type { ComponentProps } from "react";
 
 type ButtonStyle = {
   variant?: "default" | "primary" | "danger";
+  size?: "md" | "sm";
   className?: string;
 };
 
-function buttonClass({ variant = "default", className }: ButtonStyle) {
+export function buttonClass({ variant = "default", size = "md", className }: ButtonStyle) {
   const variants = {
     default: "border-line bg-surface text-ink",
     primary: "border-primary-border bg-primary text-on-primary",
     danger: "border-danger-fill bg-danger-fill text-on-danger",
   };
-  return `inline-block cursor-pointer rounded-lg border px-3 py-2 ${variants[variant]} ${className ?? ""}`;
+  const sizes = {
+    md: "px-3 py-2",
+    sm: "px-2.5 py-1 text-sm pointer-coarse:min-h-11",
+  };
+  return `inline-flex cursor-pointer items-center gap-1.5 rounded-lg border ${sizes[size]} ${variants[variant]} ${className ?? ""}`;
 }
 
-export function Button({ variant, className, ...props }: ComponentProps<"button"> & ButtonStyle) {
-  return <button {...props} className={buttonClass({ variant, className })} />;
+export function Button({ variant, size, className, ...props }: ComponentProps<"button"> & ButtonStyle) {
+  return <button {...props} className={buttonClass({ variant, size, className })} />;
 }
 
-export function ButtonLink({ variant, className, ...props }: ComponentProps<typeof Link> & ButtonStyle) {
-  return <Link {...props} className={buttonClass({ variant, className })} />;
+export function ButtonLink({ variant, size, className, ...props }: ComponentProps<typeof Link> & ButtonStyle) {
+  return <Link {...props} className={buttonClass({ variant, size, className })} />;
 }
