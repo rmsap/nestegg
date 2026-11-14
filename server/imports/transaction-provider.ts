@@ -11,7 +11,7 @@ export type ProviderTransaction = {
 export type ProviderAccount = {
   externalId: string;
   name: string;
-  kind: "bank" | "credit_card" | "investment" | "other";
+  kind: "bank" | "credit_card" | "investment" | "loan" | "other";
   currency: "USD";
   // Credit card balances are positive when money is owed.
   balanceCents: number | null;

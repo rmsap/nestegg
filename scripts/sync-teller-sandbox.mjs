@@ -12,7 +12,9 @@ try {
   const db = new DatabaseSync(join(directory, "nestegg.sqlite"));
   try {
     initialize(db);
-    const result = await syncTransactions(db, provider);
+    const connection = db.prepare("SELECT id FROM connections WHERE provider = 'teller' AND label = 'Teller Sandbox'").get() ??
+      db.prepare("INSERT INTO connections (provider, label) VALUES ('teller', 'Teller Sandbox') RETURNING id").get();
+    const result = await syncTransactions(db, Number(connection.id), provider);
     console.log(`Processed ${result.accounts} accounts and ${result.transactions} transactions.`);
     console.log("To view them, set NESTEGG_DATA_DIR=data/teller-sandbox before starting Nestegg.");
   } finally {

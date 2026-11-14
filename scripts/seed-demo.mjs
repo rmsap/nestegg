@@ -21,11 +21,11 @@ try {
       console.log("Demo database already contains data. It was left as is.");
     } else {
       db.exec(`
-        INSERT INTO accounts (id, name, kind, balance_cents) VALUES
-          (1, 'Everyday checking', 'bank', 485000),
-          (2, 'High-yield savings', 'bank', 1645000),
-          (3, 'Rewards card', 'credit_card', 245000),
-          (4, 'Manual investment account', 'investment', 2400000);
+        INSERT INTO accounts (id, name, kind, class, balance_cents) VALUES
+          (1, 'Everyday checking', 'bank', 'asset', 485000),
+          (2, 'High-yield savings', 'bank', 'asset', 1645000),
+          (3, 'Rewards card', 'credit_card', 'liability', 245000),
+          (4, 'Manual investment account', 'investment', 'asset', 2400000);
         INSERT INTO categories (id, name) VALUES
           (1, 'Housing'), (2, 'Groceries'), (3, 'Dining'),
           (4, 'Shopping'), (5, 'Transport'), (6, 'Other essentials');

@@ -1,17 +1,20 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { TransactionProvider } from "./transaction-provider";
 
-export async function syncTransactions(db: DatabaseSync, provider: TransactionProvider) {
+export async function syncTransactions(db: DatabaseSync, connectionId: number, provider: TransactionProvider) {
   // Complete network work before taking a write lock.
   const accounts = await provider.fetchAccounts();
   db.exec("BEGIN IMMEDIATE");
   try {
+    if (!db.prepare("SELECT 1 FROM connections WHERE id = ?").get(connectionId)) throw new Error("Unknown connection");
+    const now = new Date().toISOString();
     const upsertAccount = db.prepare(`
-      INSERT INTO accounts (name, kind, balance_cents, provider, external_id)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(provider, external_id) DO UPDATE SET
-        name = excluded.name, kind = excluded.kind,
-        balance_cents = COALESCE(excluded.balance_cents, accounts.balance_cents)
+      INSERT INTO accounts (name, kind, class, currency, balance_cents, balance_as_of, connection_id, external_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(connection_id, external_id) DO UPDATE SET
+        name = excluded.name, kind = excluded.kind, class = excluded.class, currency = excluded.currency,
+        balance_cents = COALESCE(excluded.balance_cents, accounts.balance_cents),
+        balance_as_of = COALESCE(excluded.balance_as_of, accounts.balance_as_of)
       RETURNING id
     `);
     const upsertTransaction = db.prepare(`
@@ -28,7 +31,9 @@ export async function syncTransactions(db: DatabaseSync, provider: TransactionPr
         (account.balanceCents !== null && !Number.isSafeInteger(account.balanceCents))) {
         throw new Error("Invalid provider account or unsupported currency");
       }
-      const local = upsertAccount.get(account.name, account.kind, account.balanceCents, provider.id, account.externalId);
+      const local = upsertAccount.get(account.name, account.kind,
+        account.kind === "credit_card" || account.kind === "loan" ? "liability" : "asset", account.currency,
+        account.balanceCents, account.balanceCents === null ? null : now, connectionId, account.externalId);
       const accountId = Number(local?.id);
       for (const entry of account.transactions) {
         const date = new Date(entry.date + "T00:00:00Z");

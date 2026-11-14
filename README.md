@@ -49,7 +49,7 @@ This prototype uses Node's built-in SQLite driver and USD integer cents. The pro
 
 ### Transaction providers
 
-`server/imports/transaction-provider.ts` defines the normalized accounts and transactions an adapter returns. `server/imports/sync.ts` fetches and imports one batch atomically. A new provider implements the same interface and can use the importer directly. Account identity is scoped to the provider and transaction identity to the imported account. A provider switch leaves both sets of records available under their own identities, so overlapping history needs explicit reconciliation.
+`server/imports/transaction-provider.ts` defines the normalized accounts and transactions an adapter returns. `server/imports/sync.ts` fetches and imports one batch atomically. A new provider implements the same interface and can use the importer directly. Account identity is scoped to the connection and transaction identity to the imported account. A connection switch leaves both sets of records available under their own identities, so overlapping history needs explicit reconciliation.
 
 If you already have a Teller Sandbox enrollment token, place it in the ignored `.env.local` file as `TELLER_SANDBOX_TOKEN`. An Application ID is used for enrollment and cannot run the importer on its own. Run the following from the project directory:
 

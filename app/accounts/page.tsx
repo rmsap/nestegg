@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 const groups = [
   { kind: "bank", name: "Bank Accounts" },
   { kind: "credit_card", name: "Credit Cards" },
+  { kind: "loan", name: "Loans" },
   { kind: "investment", name: "Investments" },
   { kind: "other", name: "Other Accounts" },
 ] as const;
