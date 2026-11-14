@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Activity } from "../components/activity";
-import { Metric } from "../components/metric";
+import { Metric, MetricGrid } from "../components/metric";
 import { PageHeading } from "../components/page-heading";
 import { Panel } from "../components/ui/panel";
 import { budgetTotals, categories, uncategorizedSpending } from "../server/budget/queries";
@@ -40,12 +40,12 @@ export default async function OverviewPage({ searchParams }: {
 
   return <>
     <PageHeading title="Overview" period={{ month, path: "/" }} />
-    <div className="metrics">
+    <MetricGrid>
       <Metric label="Left to spend" value={planned - spent} primary />
       <Metric label="Posted spending" value={spent} />
       {hasBalances && <Metric label={allBalances ? "Net worth" : "Net worth from known balances"}
         value={knownNetWorth(accountList)} />}
-    </div>
+    </MetricGrid>
     <Panel heading="Recent activity"
       headingAside={<Link href={"/transactions?month=" + month}>All transactions</Link>}>
       <Activity list={recent} />
