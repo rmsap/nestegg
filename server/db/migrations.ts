@@ -356,7 +356,6 @@ export const migrations = [
         username TEXT COLLATE NOCASE UNIQUE,
         password_hash TEXT,
         session_version INTEGER NOT NULL DEFAULT 1,
-        role TEXT NOT NULL CHECK (role IN ('admin', 'member')),
         currency TEXT NOT NULL DEFAULT 'USD',
         primary_color TEXT CHECK (
           length(primary_color) = 7 AND substr(primary_color, 1, 1) = '#'
@@ -365,8 +364,8 @@ export const migrations = [
         color_mode TEXT NOT NULL DEFAULT 'system' CHECK (color_mode IN ('system', 'light', 'dark')),
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
       ) STRICT;
-      INSERT INTO users_v9 (id, role, password_hash, session_version, currency, primary_color, color_mode)
-        SELECT u.id, CASE WHEN u.id = 1 THEN 'admin' ELSE 'member' END, s.password_hash,
+      INSERT INTO users_v9 (id, password_hash, session_version, currency, primary_color, color_mode)
+        SELECT u.id, s.password_hash,
           COALESCE(s.session_version, 1), COALESCE(s.currency, 'USD'), u.primary_color, u.color_mode
         FROM users u LEFT JOIN settings s ON s.id = 1;
       ${keepSequence("users")}

@@ -19,7 +19,7 @@ import { syncDueConnections } from "../server/schedule/sync-job.ts";
 import { decrypt } from "../server/secrets.ts";
 import { transactions } from "../server/transactions/queries.ts";
 import { saveReview } from "../server/transactions/mutations.ts";
-import { userAppearance } from "../server/users/users.ts";
+import { createUser, userAppearance } from "../server/users/users.ts";
 
 const key = randomBytes(32);
 const T0 = new Date("2026-11-10T12:00:00.000Z");
@@ -29,7 +29,12 @@ const GONE = 999_999;
 
 const rows = (db, sql, ...args) => db.prepare(sql).all(...args).map((row) => ({ ...row }));
 const count = (db, sql, ...args) => Number(db.prepare(sql).get(...args).n);
-const addUser = (db, role = "member") => Number(db.prepare("INSERT INTO users (role) VALUES (?) RETURNING id").get(role).id);
+let next = 0;
+function addUser(db) {
+  const id = createUser(db, { username: "user" + ++next, password: "correct horse battery" });
+  db.prepare("DELETE FROM events WHERE user_id = ? AND type = 'user.created'").run(id);
+  return id;
+}
 const message = (work) => {
   try {
     work();
@@ -74,7 +79,7 @@ function household(db, user, tag, income) {
 
 function world(t) {
   const db = open(t);
-  const a = household(db, addUser(db, "admin"), "Alpha", 111_000);
+  const a = household(db, addUser(db), "Alpha", 111_000);
   const b = household(db, addUser(db), "Bravo", 222_000);
   return { db, a, b };
 }
@@ -82,7 +87,7 @@ function world(t) {
 function owned(db, user) {
   const through = (table, parent, column) => rows(db, `SELECT * FROM ${table} WHERE ${column} IN (SELECT id FROM ${parent} WHERE user_id = ?) ORDER BY 1, 2`, user);
   return JSON.stringify({
-    user: rows(db, "SELECT id, role, currency, primary_color FROM users WHERE id = ?", user),
+    user: rows(db, "SELECT id, currency, primary_color FROM users WHERE id = ?", user),
     connections: rows(db, "SELECT * FROM connections WHERE user_id = ? ORDER BY id", user),
     accounts: rows(db, "SELECT * FROM accounts WHERE user_id = ? ORDER BY id", user),
     transactions: through("transactions", "accounts", "account_id"),
@@ -190,7 +195,7 @@ test("every by-id write on another user's row behaves like a missing id and chan
 
 test("two users can each have a category with the same name and a budget for the same month", (t) => {
   const db = open(t);
-  const [a, b] = [addUser(db, "admin"), addUser(db)];
+  const [a, b] = [addUser(db), addUser(db)];
   assert.equal(insertCategory(db, a, "Food", MONTH, 10_000, "#336699"), true);
   assert.equal(insertCategory(db, b, "food", MONTH, 20_000, "#336699"), true);
   assert.equal(insertCategory(db, a, "FOOD", MONTH, 30_000, "#336699"), false);
@@ -226,7 +231,7 @@ function fixture(extra = {}) {
 function pair(t) {
   const db = open(t);
   db.exec("INSERT INTO providers (key, name, default_sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES ('fixture', 'Fixture', 360, 15, 10)");
-  const a = addUser(db, "admin"), b = addUser(db);
+  const a = addUser(db), b = addUser(db);
   const connect = (user, credential) => {
     const id = createConnection(db, user, key, { provider: "fixture", label: "Conn " + credential, credential });
     setConnectionEnabled(db, user, id, true);

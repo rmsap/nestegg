@@ -14,8 +14,8 @@ test("a fresh database reaches the latest version with its seeded user, provider
   initialize(db);
   assert.equal(db.prepare("PRAGMA user_version").get().user_version, migrations.length);
   assert.equal(migrations.length, 11);
-  assert.deepEqual(db.prepare("SELECT id, role, currency, username, password_hash FROM users").all().map((row) => ({ ...row })),
-    [{ id: 1, role: "admin", currency: "USD", username: null, password_hash: null }]);
+  assert.deepEqual(db.prepare("SELECT id, currency, username, password_hash FROM users").all().map((row) => ({ ...row })),
+    [{ id: 1, currency: "USD", username: null, password_hash: null }]);
   assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name = 'settings'").get(), undefined);
   assert.deepEqual(db.prepare("SELECT key FROM providers ORDER BY key").all().map((row) => row.key), ["demo", "plaid", "simplefin"]);
   assert.deepEqual({ ...db.prepare("SELECT name, default_sync_interval_minutes, min_sync_interval_minutes, lookback_days FROM providers WHERE key = 'plaid'").get() },

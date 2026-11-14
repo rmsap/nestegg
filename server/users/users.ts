@@ -3,11 +3,8 @@ import type { DatabaseSync } from "node:sqlite";
 import { parseColorMode, primaryColor, type ColorMode } from "../../lib/theme.ts";
 import { recordEvent } from "../events.ts";
 
-export type Role = "admin" | "member";
-
 const LOG_N = 15, R = 8, P = 1, KEY = 32;
 const MAXMEM = 256 * 1024 * 1024;
-const NOT_ADMIN = "Only an administrator can manage users";
 
 export function hashPassword(password: string) {
   const salt = randomBytes(16);
@@ -43,11 +40,6 @@ function validPassword(input: unknown) {
   return input;
 }
 
-function validRole(input: unknown): Role {
-  if (input !== "admin" && input !== "member") throw new Error("Role must be admin or member");
-  return input;
-}
-
 function inTransaction<T>(db: DatabaseSync, work: () => T): T {
   db.exec("BEGIN IMMEDIATE");
   try {
@@ -60,10 +52,6 @@ function inTransaction<T>(db: DatabaseSync, work: () => T): T {
   }
 }
 
-function requireAdmin(db: DatabaseSync, userId: number) {
-  if (db.prepare("SELECT role FROM users WHERE id = ?").get(userId)?.role !== "admin") throw new Error(NOT_ADMIN);
-}
-
 function usernameFree(db: DatabaseSync, username: string, exceptId = 0) {
   if (db.prepare("SELECT 1 FROM users WHERE username = ? AND id != ?").get(username, exceptId)) throw new Error("That username is already taken");
 }
@@ -73,59 +61,24 @@ function addDefaultMatcher(db: DatabaseSync, userId: number) {
     .run(userId);
 }
 
-export function needsSetup(db: DatabaseSync) {
-  return !db.prepare("SELECT 1 FROM users WHERE password_hash IS NOT NULL").get();
-}
-
-export function claimFirstUser(db: DatabaseSync, input: { username: string; password: string }) {
+export function createUser(db: DatabaseSync, input: { username: string; password: string }) {
   const username = validUsername(input?.username);
-  const hash = hashPassword(validPassword(input?.password));
-  return inTransaction(db, () => {
-    if (!needsSetup(db)) throw new Error("Setup has already been completed");
-    let id = Number(db.prepare("SELECT id FROM users ORDER BY id LIMIT 1").get()?.id);
-    if (!Number.isInteger(id)) {
-      id = Number(db.prepare("INSERT INTO users (role) VALUES ('admin') RETURNING id").get()?.id);
-      addDefaultMatcher(db, id);
-    }
-    usernameFree(db, username, id);
-    db.prepare("UPDATE users SET username = ?, password_hash = ?, role = 'admin' WHERE id = ?").run(username, hash, id);
-    recordEvent(db, { severity: "info", type: "user.setup", actor: "owner", userId: id, message: "Administrator account created" });
-    return id;
-  });
-}
-
-export function createUser(db: DatabaseSync, actingUserId: number, input: { username: string; password: string; role?: Role }) {
-  requireAdmin(db, actingUserId);
-  const username = validUsername(input?.username);
-  const role = validRole(input?.role ?? "member");
   const hash = hashPassword(validPassword(input?.password));
   return inTransaction(db, () => {
     usernameFree(db, username);
-    const id = Number(db.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?) RETURNING id").get(username, hash, role)?.id);
+    const id = Number(db.prepare("INSERT INTO users (username, password_hash) VALUES (?, ?) RETURNING id").get(username, hash)?.id);
     addDefaultMatcher(db, id);
     recordEvent(db, {
-      severity: "info", type: "user.created", actor: "owner", userId: actingUserId,
+      severity: "info", type: "user.created", actor: "owner", userId: id,
       message: "User created", detail: { username },
     });
     return id;
   });
 }
 
-export function listUsers(db: DatabaseSync, actingUserId: number) {
-  requireAdmin(db, actingUserId);
-  return db.prepare("SELECT id, username, role, created_at FROM users ORDER BY id").all()
-    .map((row) => ({ ...row })) as { id: number; username: string | null; role: Role; created_at: string }[];
-}
-
-export function deleteUser(db: DatabaseSync, actingUserId: number, id: number) {
-  requireAdmin(db, actingUserId);
-  if (id === actingUserId) throw new Error("You cannot delete your own account");
+export function deleteUser(db: DatabaseSync, id: number) {
   inTransaction(db, () => {
-    const target = db.prepare("SELECT username, role FROM users WHERE id = ?").get(id);
-    if (!target) throw new Error("User not found");
-    if (target.role === "admin" && !db.prepare("SELECT 1 FROM users WHERE role = 'admin' AND id != ?").get(id)) {
-      throw new Error("The last administrator cannot be deleted");
-    }
+    if (!db.prepare("SELECT 1 FROM users WHERE id = ?").get(id)) throw new Error("User not found");
     const run = (sql: string) => db.prepare(sql).run(id);
     run(`DELETE FROM notification_deliveries WHERE target_id IN (SELECT id FROM notification_targets WHERE user_id = ?1)
       OR event_id IN (SELECT id FROM events WHERE user_id = ?1)`);
@@ -144,21 +97,17 @@ export function deleteUser(db: DatabaseSync, actingUserId: number, id: number) {
     run("DELETE FROM categories WHERE user_id = ?");
     run("DELETE FROM user_providers WHERE user_id = ?");
     run("DELETE FROM users WHERE id = ?");
-    recordEvent(db, {
-      severity: "notice", type: "user.deleted", actor: "owner", userId: actingUserId,
-      message: "User deleted", detail: { username: target.username },
-    });
   });
 }
 
 let dummy: string | undefined;
 
 export function authenticate(db: DatabaseSync, username: string, password: string) {
-  const row = db.prepare("SELECT id, role, session_version, password_hash FROM users WHERE username = ?").get(String(username ?? "").trim());
+  const row = db.prepare("SELECT id, session_version, password_hash FROM users WHERE username = ?").get(String(username ?? "").trim());
   const hash = typeof row?.password_hash === "string" ? row.password_hash : (dummy ??= hashPassword("nestegg dummy password"));
   const good = verifyPassword(String(password ?? ""), hash);
   if (!row || !row.password_hash || !good) return null;
-  return { id: Number(row.id), role: row.role as Role, session_version: Number(row.session_version) };
+  return { id: Number(row.id), session_version: Number(row.session_version) };
 }
 
 export function setPassword(db: DatabaseSync, userId: number, current: string, next: string) {
@@ -173,8 +122,8 @@ export function setPassword(db: DatabaseSync, userId: number, current: string, n
 }
 
 export function userById(db: DatabaseSync, id: number) {
-  const row = db.prepare("SELECT id, username, role, currency, primary_color, session_version FROM users WHERE id = ?").get(id);
-  return row ? { ...row } as { id: number; username: string | null; role: Role; currency: string; primary_color: string | null; session_version: number } : undefined;
+  const row = db.prepare("SELECT id, username, currency, primary_color, session_version FROM users WHERE id = ?").get(id);
+  return row ? { ...row } as { id: number; username: string | null; currency: string; primary_color: string | null; session_version: number } : undefined;
 }
 
 export function userAppearance(db: DatabaseSync, userId: number) {

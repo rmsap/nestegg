@@ -12,12 +12,11 @@ import { syncConnection } from "../server/imports/sync.ts";
 import { decrypt, encrypt } from "../server/secrets.ts";
 import { saveReview } from "../server/transactions/mutations.ts";
 import {
-  authenticate, claimFirstUser, createUser, deleteUser, hashPassword, listUsers, needsSetup, setPassword, userById, verifyPassword,
+  authenticate, createUser, deleteUser, hashPassword, setPassword, userById, verifyPassword,
 } from "../server/users/users.ts";
 
 const key = randomBytes(32);
 const T0 = new Date("2026-11-10T12:00:00.000Z");
-const NOT_ADMIN = /^Error: Only an administrator can manage users$/;
 const PASSWORD = "correct horse battery";
 
 const open = (t) => {
@@ -83,8 +82,10 @@ test("migration 11 moves a populated version 10 database to per-user ownership w
   }
   assert.equal(count(db, "SELECT COUNT(*) AS n FROM budget_limits"), 3);
 
-  const [user] = rows(db, "SELECT id, username, password_hash, session_version, role, currency, primary_color FROM users");
-  assert.deepEqual(user, { id: 1, username: null, password_hash: "old-hash", session_version: 4, role: "admin", currency: "EUR", primary_color: "#112233" });
+  const [user] = rows(db, "SELECT id, username, password_hash, session_version, currency, primary_color FROM users");
+  assert.deepEqual(rows(db, "PRAGMA table_info(users)").map((column) => column.name),
+    ["id", "username", "password_hash", "session_version", "currency", "primary_color", "color_mode", "created_at"]);
+  assert.deepEqual(user, { id: 1, username: null, password_hash: "old-hash", session_version: 4, currency: "EUR", primary_color: "#112233" });
   assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name = 'settings'").get(), undefined);
   assert.deepEqual(rows(db, "PRAGMA table_info(providers)").map((column) => column.name),
     ["key", "name", "default_sync_interval_minutes", "min_sync_interval_minutes", "lookback_days"]);
@@ -122,80 +123,45 @@ test("passwords hash with scrypt and verify only against a well-formed matching 
   }
 });
 
-test("usernames and passwords are validated, unique without regard to case, and setup happens once", (t) => {
+test("usernames and passwords are validated and usernames are unique without regard to case", (t) => {
   const db = open(t);
-  assert.equal(needsSetup(db), true);
   for (const username of ["ab", "x".repeat(33), "has space", "bad!name", "", "  a  "]) {
-    assert.throws(() => claimFirstUser(db, { username, password: PASSWORD }), /Username/, username);
+    assert.throws(() => createUser(db, { username, password: PASSWORD }), /Username/, username);
   }
   for (const password of ["short", "x".repeat(9), "x".repeat(201), ""]) {
-    assert.throws(() => claimFirstUser(db, { username: "alice", password }), /Password must be 10 to 200 characters/);
+    assert.throws(() => createUser(db, { username: "alice", password }), /Password must be 10 to 200 characters/);
   }
-  assert.equal(needsSetup(db), true);
-  const id = claimFirstUser(db, { username: "  Alice.Smith_1-x  ", password: PASSWORD });
-  assert.equal(id, 1);
-  assert.equal(needsSetup(db), false);
-  assert.deepEqual(rows(db, "SELECT username, role FROM users"), [{ username: "Alice.Smith_1-x", role: "admin" }]);
-  assert.throws(() => claimFirstUser(db, { username: "other", password: PASSWORD }), /already/);
-  assert.throws(() => createUser(db, id, { username: "ALICE.smith_1-X", password: PASSWORD }), /already taken/);
-  const second = createUser(db, id, { username: "bobby", password: PASSWORD });
-  assert.deepEqual(userById(db, second), { id: second, username: "bobby", role: "member", currency: "USD", primary_color: null, session_version: 1 });
+  assert.equal(count(db, "SELECT COUNT(*) AS n FROM users"), 1);
+  const id = createUser(db, { username: "  Alice.Smith_1-x  ", password: PASSWORD });
+  assert.deepEqual(rows(db, "SELECT username FROM users WHERE id = ?", id), [{ username: "Alice.Smith_1-x" }]);
+  assert.throws(() => createUser(db, { username: "ALICE.smith_1-X", password: PASSWORD }), /already taken/);
+  const second = createUser(db, { username: "bobby", password: PASSWORD });
+  assert.deepEqual(userById(db, second), { id: second, username: "bobby", currency: "USD", primary_color: null, session_version: 1 });
   assert.equal(userById(db, 999), undefined);
-  assert.throws(() => createUser(db, id, { username: "carol", password: PASSWORD, role: "root" }), /Role/);
-  assert.equal(count(db, "SELECT COUNT(*) AS n FROM users"), 2);
-  const event = rows(db, "SELECT severity, actor, user_id FROM events WHERE type = 'user.setup'");
-  assert.deepEqual(event, [{ severity: "info", actor: "owner", user_id: id }]);
-});
-
-test("a claim on an empty users table creates the administrator and its default matcher", (t) => {
-  const db = open(t);
-  db.exec("DELETE FROM notification_matchers; DELETE FROM user_providers; DELETE FROM users");
-  const id = claimFirstUser(db, { username: "alice", password: PASSWORD });
-  assert.deepEqual(rows(db, "SELECT role FROM users WHERE id = ?", id), [{ role: "admin" }]);
-  assert.equal(count(db, "SELECT COUNT(*) AS n FROM notification_matchers WHERE user_id = ? AND name = 'default'", id), 1);
+  assert.equal(count(db, "SELECT COUNT(*) AS n FROM users"), 3);
+  assert.equal(count(db, "SELECT COUNT(*) AS n FROM notification_matchers WHERE user_id = ? AND name = 'default'", second), 1);
+  assert.deepEqual(rows(db, "SELECT severity, actor, user_id FROM events WHERE type = 'user.created' ORDER BY id"),
+    [{ severity: "info", actor: "owner", user_id: id }, { severity: "info", actor: "owner", user_id: second }]);
 });
 
 test("authenticate gives the same answer for an unknown user and a wrong password, and setPassword rotates the session", (t) => {
   const db = open(t);
-  const admin = claimFirstUser(db, { username: "alice", password: PASSWORD });
-  assert.deepEqual(authenticate(db, "ALICE", PASSWORD), { id: admin, role: "admin", session_version: 1 });
+  const alice = createUser(db, { username: "alice", password: PASSWORD });
+  assert.deepEqual(authenticate(db, "ALICE", PASSWORD), { id: alice, session_version: 1 });
   assert.equal(authenticate(db, "nobody", PASSWORD), null);
   assert.equal(authenticate(db, "alice", "wrong password!"), null);
   assert.equal(authenticate(db, "alice", ""), null);
-  db.exec("INSERT INTO users (username, role) VALUES ('unclaimed', 'member')");
+  db.exec("INSERT INTO users (username) VALUES ('unclaimed')");
   assert.equal(authenticate(db, "unclaimed", PASSWORD), null);
 
-  assert.throws(() => setPassword(db, admin, "wrong password!", "a brand new password"), /current password/);
-  assert.throws(() => setPassword(db, admin, PASSWORD, "short"), /Password must be/);
-  assert.equal(userById(db, admin).session_version, 1);
-  assert.equal(setPassword(db, admin, PASSWORD, "a brand new password"), 2);
-  assert.equal(userById(db, admin).session_version, 2);
+  assert.throws(() => setPassword(db, alice, "wrong password!", "a brand new password"), /current password/);
+  assert.throws(() => setPassword(db, alice, PASSWORD, "short"), /Password must be/);
+  assert.equal(userById(db, alice).session_version, 1);
+  assert.equal(setPassword(db, alice, PASSWORD, "a brand new password"), 2);
+  assert.equal(userById(db, alice).session_version, 2);
   assert.equal(authenticate(db, "alice", PASSWORD), null);
-  assert.deepEqual(authenticate(db, "alice", "a brand new password"), { id: admin, role: "admin", session_version: 2 });
-  assert.equal(count(db, "SELECT COUNT(*) AS n FROM events WHERE type = 'user.password_changed' AND user_id = ?", admin), 1);
-});
-
-test("only administrators manage users, and an administrator cannot remove themselves or the last administrator", (t) => {
-  const db = open(t);
-  const admin = claimFirstUser(db, { username: "alice", password: PASSWORD });
-  const member = createUser(db, admin, { username: "bobby", password: PASSWORD });
-  assert.throws(() => createUser(db, member, { username: "carol", password: PASSWORD }), NOT_ADMIN);
-  assert.throws(() => listUsers(db, member), NOT_ADMIN);
-  assert.throws(() => deleteUser(db, member, admin), NOT_ADMIN);
-  assert.throws(() => deleteUser(db, member, member), NOT_ADMIN);
-  assert.throws(() => listUsers(db, 999), NOT_ADMIN);
-  assert.equal(count(db, "SELECT COUNT(*) AS n FROM users"), 2);
-
-  assert.deepEqual(listUsers(db, admin).map((user) => Object.keys(user).sort()), [["created_at", "id", "role", "username"], ["created_at", "id", "role", "username"]]);
-  assert.deepEqual(listUsers(db, admin).map((user) => [user.id, user.username, user.role]), [[admin, "alice", "admin"], [member, "bobby", "member"]]);
-  assert.throws(() => deleteUser(db, admin, admin), /cannot delete your own/);
-  assert.throws(() => deleteUser(db, admin, 999), /User not found/);
-  const second = createUser(db, admin, { username: "carol", password: PASSWORD, role: "admin" });
-  deleteUser(db, admin, second);
-  assert.equal(userById(db, second), undefined);
-  assert.equal(count(db, "SELECT COUNT(*) AS n FROM users WHERE role = 'admin'"), 1);
-  assert.deepEqual(rows(db, "SELECT type, user_id, detail FROM events WHERE type IN ('user.created', 'user.deleted') ORDER BY id").map((event) => [event.type, event.user_id, JSON.parse(event.detail).username]),
-    [["user.created", admin, "bobby"], ["user.created", admin, "carol"], ["user.deleted", admin, "carol"]]);
+  assert.deepEqual(authenticate(db, "alice", "a brand new password"), { id: alice, session_version: 2 });
+  assert.equal(count(db, "SELECT COUNT(*) AS n FROM events WHERE type = 'user.password_changed' AND user_id = ?", alice), 1);
 });
 
 const OWNED = {
@@ -236,34 +202,34 @@ async function seedUser(db, id, tag) {
 
 test("deleting a user removes everything they owned and leaves the other user untouched", async (t) => {
   const db = open(t);
-  const admin = claimFirstUser(db, { username: "alice", password: PASSWORD });
-  const member = createUser(db, admin, { username: "bobby", password: PASSWORD });
-  await seedUser(db, admin, "A");
-  await seedUser(db, member, "B");
-  const mine = counts(db, member);
+  const alice = createUser(db, { username: "alice", password: PASSWORD });
+  const bobby = createUser(db, { username: "bobby", password: PASSWORD });
+  await seedUser(db, alice, "A");
+  await seedUser(db, bobby, "B");
+  const mine = counts(db, bobby);
   for (const table of Object.keys(OWNED)) assert.ok(mine[table] > 0, table + " should be seeded");
-  const beforeTotals = counts(db, admin);
+  const beforeTotals = counts(db, alice);
   const beforeOthers = JSON.stringify([
-    rows(db, "SELECT * FROM accounts WHERE user_id = ? ORDER BY id", admin), rows(db, "SELECT * FROM connections WHERE user_id = ? ORDER BY id", admin),
-    rows(db, "SELECT * FROM categories WHERE user_id = ? ORDER BY id", admin), rows(db, "SELECT * FROM events WHERE user_id = ? ORDER BY id", admin),
-    rows(db, "SELECT * FROM user_providers WHERE user_id = ? ORDER BY provider", admin),
-    rows(db, "SELECT t.* FROM transactions t JOIN accounts a ON a.id = t.account_id WHERE a.user_id = ? ORDER BY t.id", admin),
+    rows(db, "SELECT * FROM accounts WHERE user_id = ? ORDER BY id", alice), rows(db, "SELECT * FROM connections WHERE user_id = ? ORDER BY id", alice),
+    rows(db, "SELECT * FROM categories WHERE user_id = ? ORDER BY id", alice), rows(db, "SELECT * FROM events WHERE user_id = ? ORDER BY id", alice),
+    rows(db, "SELECT * FROM user_providers WHERE user_id = ? ORDER BY provider", alice),
+    rows(db, "SELECT t.* FROM transactions t JOIN accounts a ON a.id = t.account_id WHERE a.user_id = ? ORDER BY t.id", alice),
   ]);
 
-  deleteUser(db, admin, member);
+  assert.throws(() => deleteUser(db, 999), /User not found/);
+  deleteUser(db, bobby);
 
-  assert.equal(userById(db, member), undefined);
-  assert.deepEqual(counts(db, member), Object.fromEntries(Object.keys(OWNED).map((table) => [table, 0])));
-  assert.deepEqual({ ...counts(db, admin), events: 0 }, { ...beforeTotals, events: 0 });
-  assert.equal(counts(db, admin).events, beforeTotals.events + 1);
+  assert.equal(userById(db, bobby), undefined);
+  assert.deepEqual(counts(db, bobby), Object.fromEntries(Object.keys(OWNED).map((table) => [table, 0])));
+  assert.deepEqual(counts(db, alice), beforeTotals);
   assert.equal(JSON.stringify([
-    rows(db, "SELECT * FROM accounts WHERE user_id = ? ORDER BY id", admin), rows(db, "SELECT * FROM connections WHERE user_id = ? ORDER BY id", admin),
-    rows(db, "SELECT * FROM categories WHERE user_id = ? ORDER BY id", admin), rows(db, "SELECT * FROM events WHERE user_id = ? AND type != 'user.deleted' ORDER BY id", admin),
-    rows(db, "SELECT * FROM user_providers WHERE user_id = ? ORDER BY provider", admin),
-    rows(db, "SELECT t.* FROM transactions t JOIN accounts a ON a.id = t.account_id WHERE a.user_id = ? ORDER BY t.id", admin),
+    rows(db, "SELECT * FROM accounts WHERE user_id = ? ORDER BY id", alice), rows(db, "SELECT * FROM connections WHERE user_id = ? ORDER BY id", alice),
+    rows(db, "SELECT * FROM categories WHERE user_id = ? ORDER BY id", alice), rows(db, "SELECT * FROM events WHERE user_id = ? ORDER BY id", alice),
+    rows(db, "SELECT * FROM user_providers WHERE user_id = ? ORDER BY provider", alice),
+    rows(db, "SELECT t.* FROM transactions t JOIN accounts a ON a.id = t.account_id WHERE a.user_id = ? ORDER BY t.id", alice),
   ]), beforeOthers);
   for (const table of ["transactions", "balance_snapshots", "sync_runs", "notification_matcher_targets", "notification_deliveries", "accounts", "connections"]) {
-    assert.equal(count(db, `SELECT COUNT(*) AS n FROM ${table}`), counts(db, admin)[table], table);
+    assert.equal(count(db, `SELECT COUNT(*) AS n FROM ${table}`), counts(db, alice)[table], table);
   }
   assert.deepEqual(rows(db, "PRAGMA foreign_key_check"), []);
 });
@@ -271,21 +237,21 @@ test("deleting a user removes everything they owned and leaves the other user un
 test("no password or password hash is ever stored in an event", async (t) => {
   const db = open(t);
   const first = "first secret passphrase", second = "second secret passphrase", third = "third secret passphrase";
-  const admin = claimFirstUser(db, { username: "alice", password: first });
-  const member = createUser(db, admin, { username: "bobby", password: second });
+  const alice = createUser(db, { username: "alice", password: first });
+  const bobby = createUser(db, { username: "bobby", password: second });
   assert.equal(authenticate(db, "bobby", "wrong wrong wrong"), null);
   assert.equal(authenticate(db, "ghost", first), null);
-  setPassword(db, member, second, third);
-  assert.throws(() => setPassword(db, member, "not the password", "another secret passphrase"));
-  const hashes = rows(db, "SELECT password_hash FROM users").map((row) => row.password_hash);
+  setPassword(db, bobby, second, third);
+  assert.throws(() => setPassword(db, bobby, "not the password", "another secret passphrase"));
+  const hashes = rows(db, "SELECT password_hash FROM users WHERE password_hash IS NOT NULL").map((row) => row.password_hash);
   const secrets = [first, second, third, "another secret passphrase", "wrong wrong wrong", "scrypt$", ...hashes];
   const clean = () => {
     const dump = JSON.stringify(rows(db, "SELECT * FROM events"));
     for (const secret of secrets) assert.ok(!dump.includes(secret), secret);
   };
   clean();
-  assert.deepEqual(rows(db, "SELECT type FROM events ORDER BY id").map((row) => row.type), ["user.setup", "user.created", "user.password_changed"]);
-  deleteUser(db, admin, member);
+  assert.deepEqual(rows(db, "SELECT type FROM events ORDER BY id").map((row) => row.type), ["user.created", "user.created", "user.password_changed"]);
+  deleteUser(db, bobby);
   clean();
-  assert.deepEqual(rows(db, "SELECT type FROM events ORDER BY id").map((row) => row.type), ["user.setup", "user.created", "user.deleted"]);
+  assert.deepEqual(rows(db, "SELECT type FROM events ORDER BY id").map((row) => row.type), ["user.created"]);
 });
