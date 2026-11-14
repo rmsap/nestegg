@@ -112,6 +112,19 @@ const migrations = [
     version: 4,
     sql: "ALTER TABLE transactions ADD COLUMN memo TEXT",
   },
+  {
+    version: 5,
+    sql: `
+      CREATE TABLE users (
+        id INTEGER PRIMARY KEY,
+        primary_color TEXT CHECK (
+          length(primary_color) = 7 AND substr(primary_color, 1, 1) = '#'
+          AND substr(primary_color, 2) NOT GLOB '*[^0-9a-f]*'
+        )
+      ) STRICT;
+      INSERT INTO users (id) VALUES (1);
+    `,
+  },
 ];
 
 export function initialize(db: DatabaseSync) {

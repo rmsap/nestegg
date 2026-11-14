@@ -9,8 +9,8 @@ type ButtonStyle = {
 function buttonClass({ variant = "default", className }: ButtonStyle) {
   const variants = {
     default: "border-line bg-surface text-ink",
-    primary: "border-green bg-green text-white",
-    danger: "border-danger bg-danger text-white",
+    primary: "border-primary bg-primary text-on-primary",
+    danger: "border-danger bg-danger text-on-danger",
   };
   return `inline-block cursor-pointer rounded-lg border px-3 py-2 ${variants[variant]} ${className ?? ""}`;
 }

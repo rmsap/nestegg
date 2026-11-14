@@ -21,7 +21,7 @@ export default async function BudgetPage({ searchParams }: {
 
   return <>
     <PageHeading title="Budget" period={{ month, path: "/budget" }} />
-    {typeof notice === "string" && <p className="mb-4 rounded-lg bg-[#e8efe3] px-2.5 py-1.5 text-sm" role="status">{notice}</p>}
+    {typeof notice === "string" && <p className="mb-4 rounded-lg bg-accent px-2.5 py-1.5 text-sm" role="status">{notice}</p>}
     <MetricGrid>
       <Metric label="Remaining" value={planned - spent} primary />
       <Metric label="Expected income" value={expectedIncome} />

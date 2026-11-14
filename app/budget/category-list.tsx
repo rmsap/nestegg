@@ -21,7 +21,7 @@ export function CategoryList({ list, editing, month }: { list: Category[]; editi
           <div className="flex items-center gap-1.5">
             {editing && <details className="relative">
               <summary className="w-5 cursor-pointer list-none text-[1.35rem]/7 text-danger [&::-webkit-details-marker]:hidden" aria-label={`Delete ${category.name} category`}>×</summary>
-              <div className="absolute z-1 w-[min(260px,calc(100vw-68px))] rounded-lg border border-line bg-surface p-3.5 wrap-anywhere shadow-[0_5px_16px_#243b3120]">
+              <div className="absolute z-1 w-[min(260px,calc(100vw-68px))] rounded-lg border border-line bg-surface p-3.5 wrap-anywhere shadow-popover">
                 <strong>Delete {category.name}?</strong>
                 <p className="text-sm text-muted">This removes the category and its limits for all months.</p>
                 {category.activity > 0 && alternatives.length === 0
@@ -45,7 +45,7 @@ export function CategoryList({ list, editing, month }: { list: Category[]; editi
                   type="number" min="0" max="1000000" step="0.01" required defaultValue={(category.limit_cents / 100).toFixed(2)} />
               : money(category.limit_cents)}</div>
           </div>
-          <div className="my-1.5 h-[7px] overflow-hidden rounded-lg bg-[#eaf0e5]" aria-hidden="true"><div className={`h-full ${remaining < 0 ? "bg-[#b97454]" : "bg-[#639678]"}`} style={{
+          <div className="my-1.5 h-[7px] overflow-hidden rounded-lg bg-inset" aria-hidden="true"><div className={`h-full ${remaining < 0 ? "bg-over-budget" : "bg-progress"}`} style={{
             width: `${Math.min(100, Math.max(0, category.spent / Math.max(1, category.limit_cents) * 100))}%`,
           }} /></div>
           <p className="text-sm text-muted">{money(Math.abs(remaining))} {remaining < 0 ? "over budget" : "remaining"}</p>

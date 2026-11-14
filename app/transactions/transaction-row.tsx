@@ -68,7 +68,7 @@ export function TransactionRow({ transaction, categoryChoices, hasLeadingColumn 
       trigger.current?.focus();
     }}>
     {disclosure ? <button type="button" ref={trigger}
-      className={`grid w-(--review-width) min-h-(--review-width) cursor-pointer place-items-center compact:col-start-1 compact:row-start-1 compact:row-span-2 ${isMemo ? "text-green aria-expanded:[&>svg]:rotate-90" : "rounded-full bg-[#ffe49a] text-[#694a00]"}`}
+      className={`grid w-(--review-width) min-h-(--review-width) cursor-pointer place-items-center compact:col-start-1 compact:row-start-1 compact:row-span-2 ${isMemo ? "text-primary-text aria-expanded:[&>svg]:rotate-90" : "rounded-full bg-warning text-warning-text"}`}
       aria-label={isMemo ? `${open ? "Hide" : "Show"} memo for ${merchant}` : `Review ${merchant}`}
       aria-expanded={open} aria-controls={open ? panelId : undefined}
       title={isMemo ? undefined : "Needs review"} aria-disabled={saving}
