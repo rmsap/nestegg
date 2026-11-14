@@ -1,9 +1,10 @@
 import { Button, ButtonLink } from "../../components/ui/button";
 import { Field } from "../../components/ui/field";
 import { Panel } from "../../components/ui/panel";
-import { addCategory, deleteCategory, saveLimits } from "./actions";
+import { addCategory, deleteCategory, saveCategories } from "./actions";
 import type { Category } from "../../server/budget/queries";
 import { money } from "../../lib/finance";
+import { defaultPrimaryColor } from "../../lib/theme";
 
 export function CategoryList({ list, editing, month }: { list: Category[]; editing: boolean; month: string }) {
   const url = "/budget?month=" + month;
@@ -12,7 +13,7 @@ export function CategoryList({ list, editing, month }: { list: Category[]; editi
       <ButtonLink href={url}>Cancel</ButtonLink>
       <Button type="submit" variant="primary" form="limits">Save changes</Button>
     </div> : <ButtonLink href={url + "&edit=1"}>Edit categories</ButtonLink>}>
-      {editing && <form id="limits" action={saveLimits}><input type="hidden" name="month" value={month} /></form>}
+      {editing && <form id="limits" action={saveCategories}><input type="hidden" name="month" value={month} /></form>}
       {list.length === 0 && <p className="text-sm text-muted">Add a category to start your budget.</p>}
       {list.map((category) => {
         const alternatives = list.filter((item) => item.id !== category.id);
@@ -39,6 +40,12 @@ export function CategoryList({ list, editing, month }: { list: Category[]; editi
                   </form>}
               </div>
             </details>}
+            {editing
+              ? <input type="color" form="limits" name={`color-${category.id}`}
+                  aria-label={`${category.name} color`} title={`${category.name} color`}
+                  className="size-8 shrink-0 cursor-pointer p-1" defaultValue={category.color} />
+              : <span aria-hidden="true" className="size-3 shrink-0 rounded-full border border-control"
+                  style={{ backgroundColor: category.color }} />}
             <h3 className="min-w-0 flex-1">{category.name}</h3>
             <div className="text-right whitespace-nowrap tabular-nums">{money(category.spent)} / {editing
               ? <input className="w-[90px]" form="limits" name={`limit-${category.id}`} aria-label={`${category.name} monthly limit`}
@@ -58,6 +65,9 @@ export function CategoryList({ list, editing, month }: { list: Category[]; editi
         <Field label="Category name"><input name="name" maxLength={60} required /></Field>
         <Field label="Monthly limit">
           <input name="limit" type="number" min="0" max="1000000" step="0.01" defaultValue="0" required />
+        </Field>
+        <Field label="Color">
+          <input type="color" name="color" className="h-10 w-16 cursor-pointer" defaultValue={defaultPrimaryColor} />
         </Field>
         <Button type="submit" variant="primary">Add category</Button>
       </form>

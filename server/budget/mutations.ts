@@ -1,11 +1,11 @@
 import { database } from "../db/connection";
 
-export function insertCategory(name: string, month: string, limit: number) {
+export function insertCategory(name: string, month: string, limit: number, color: string) {
   const db = database();
   db.exec("BEGIN IMMEDIATE");
   try {
-    const result = db.prepare("INSERT INTO categories (name) VALUES (?) ON CONFLICT(name) DO NOTHING")
-      .run(name);
+    const result = db.prepare("INSERT INTO categories (name, color) VALUES (?, ?) ON CONFLICT(name) DO NOTHING")
+      .run(name, color);
     if (result.changes) {
       db.prepare("INSERT INTO budget_months (month) VALUES (?) ON CONFLICT DO NOTHING").run(month);
       db.prepare("INSERT INTO budget_limits VALUES (?, ?, ?)").run(month, result.lastInsertRowid, limit);
@@ -18,17 +18,21 @@ export function insertCategory(name: string, month: string, limit: number) {
   }
 }
 
-export function updateLimits(month: string, updates: { id: number; limit: number }[]) {
+export function updateCategories(month: string, updates: { id: number; limit: number; color: string }[]) {
   const db = database();
   const update = db.prepare(`
     INSERT INTO budget_limits (month, category_id, limit_cents)
     SELECT ?, id, ? FROM categories WHERE id = ?
     ON CONFLICT(month, category_id) DO UPDATE SET limit_cents = excluded.limit_cents
   `);
+  const updateColor = db.prepare("UPDATE categories SET color = ? WHERE id = ?");
   db.exec("BEGIN IMMEDIATE");
   try {
     db.prepare("INSERT INTO budget_months (month) VALUES (?) ON CONFLICT DO NOTHING").run(month);
-    for (const entry of updates) update.run(month, entry.limit, entry.id);
+    for (const entry of updates) {
+      update.run(month, entry.limit, entry.id);
+      updateColor.run(entry.color, entry.id);
+    }
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");

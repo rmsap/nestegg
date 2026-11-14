@@ -19,7 +19,7 @@ export default async function TransactionsPage({ searchParams }: {
   const search = query.trim().toLowerCase();
   const month = reportingMonth(params.month);
   const list = categories(month);
-  const categoryChoices = list.map(({ id, name }) => ({ id, name }));
+  const categoryChoices = list.map(({ id, name, color }) => ({ id, name, color }));
   const filtered = transactions(month).filter((item) =>
     (!selected || item.category === selected) &&
     `${item.merchant} ${item.account}`.toLowerCase().includes(search)
