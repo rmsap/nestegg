@@ -1,6 +1,6 @@
 # Nestegg
 
-Nestegg is a local budgeting prototype built with Next.js App Router, TypeScript, and SQLite. New databases start empty. The overview and budgets use the selected reporting month. Categories, monthly limits, accounts, and transaction reviews are saved in `data/nestegg.sqlite`.
+Nestegg is a local budgeting prototype built with Next.js App Router, TypeScript, and SQLite. The seed loads sample accounts and activity for November 2026, the default reporting month. Categories, monthly limits, accounts, and transaction reviews are saved in `data/nestegg.sqlite`.
 
 ## Run locally
 
@@ -8,6 +8,7 @@ Use Node.js 22.14 or later and npm. From the project directory on Windows PowerS
 
 ```powershell
 npm.cmd install
+npm.cmd run seed:demo
 npm.cmd run dev
 ```
 
@@ -15,17 +16,7 @@ Open [http://127.0.0.1:3000](http://127.0.0.1:3000). The development and start s
 
 Open **Budget** to add a category. **Edit categories** opens the limits and shows an × beside each name. Deleting a category with transactions requires a destination category. **Transactions** supports search, category filters, and review.
 
-Set `NESTEGG_DATA_DIR` to use a different database directory. Existing prototype databases upgrade automatically. The upgrade preserves transactions and category IDs, moves the existing limits to November 2026, and creates accounts from the transaction labels. Existing labels have no stored balances, so those accounts display “Balance unavailable.”
-
-To use the separate demo database with fictional November 2026 accounts and transactions:
-
-```powershell
-npm.cmd run seed:demo
-$env:NESTEGG_DEMO = '1'
-npm.cmd run dev
-```
-
-Use a fresh shell or remove `Env:NESTEGG_DEMO` to return to the normal database. If set, `NESTEGG_DATA_DIR` overrides the database location. The seed command always targets `data/demo/nestegg.sqlite` and leaves existing data in that database intact.
+The app and seed command use the same database. The seed leaves existing records intact. Set `NESTEGG_DATA_DIR` only when you want to point the app or seed command at a different directory.
 
 ```powershell
 npm.cmd run typecheck
