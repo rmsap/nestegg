@@ -33,10 +33,10 @@ export function CategoryChip({ transactionId, merchant, categoryId, choices }: {
     });
   }
 
-  return <div className="category-editor">
+  return <div>
     <ChipPicker label={label} accessibleLabel={`Category for ${merchant}, currently ${label}`}
       optionsLabel="Categories" value={value} options={options} disabled={pending} onSelect={save} />
-    {pending && <small role="status">Saving…</small>}
-    {error && <small role="alert">{error}</small>}
+    {pending && <small className="block" role="status">Saving…</small>}
+    {error && <small className="block text-danger" role="alert">{error}</small>}
   </div>;
 }

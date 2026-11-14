@@ -7,7 +7,12 @@ type ButtonStyle = {
 };
 
 function buttonClass({ variant = "default", className }: ButtonStyle) {
-  return ["button", variant !== "default" && variant, className].filter(Boolean).join(" ");
+  const variants = {
+    default: "border-line bg-surface text-ink",
+    primary: "border-green bg-green text-white",
+    danger: "border-danger bg-danger text-white",
+  };
+  return `inline-block cursor-pointer rounded-lg border px-3 py-2 ${variants[variant]} ${className ?? ""}`;
 }
 
 export function Button({ variant, className, ...props }: ComponentProps<"button"> & ButtonStyle) {

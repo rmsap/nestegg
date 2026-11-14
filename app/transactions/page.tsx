@@ -28,7 +28,7 @@ export default async function TransactionsPage({ searchParams }: {
   return <>
     <PageHeading title="Transactions" period={{ month, path: "/transactions", filters: { q: query, category: selected } }} />
     <Panel>
-      <form className="fields" action="/transactions">
+      <form className="mt-3 flex flex-wrap items-end gap-2.5 [&>label]:min-w-0 [&>label]:flex-[1_1_140px]" action="/transactions">
         <input type="hidden" name="month" value={month} />
         <Field label="Search"><input name="q" type="search" defaultValue={query} placeholder="Merchant or account" /></Field>
         <Field label="Category">
@@ -40,7 +40,7 @@ export default async function TransactionsPage({ searchParams }: {
         </Field>
         <Button type="submit" variant="primary">Filter</Button>
       </form>
-      <Activity list={filtered} categoryChoices={categoryChoices} />
+      <div className="mt-4"><Activity list={filtered} categoryChoices={categoryChoices} /></div>
     </Panel>
   </>;
 }
