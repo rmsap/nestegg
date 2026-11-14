@@ -29,9 +29,9 @@ export function ThemePicker({ initialColor, initialMode }: { initialColor: strin
       }`
     : null;
 
-  return <div className="mt-3 grid gap-4">
+  return <form action={submit} className="grid gap-5">
     {previewStyle && <style>{previewStyle}</style>}
-    <form action={submit} className="flex flex-wrap items-end gap-3">
+    <div className="grid max-w-[560px] grid-cols-[repeat(auto-fit,minmax(min(100%,220px),1fr))] gap-4">
       <Field label="Color mode">
         <Select key={resets} name="colorMode" defaultValue={mode} disabled={pending}
           onValueChange={(value) => setMode(parseColorMode(value) ?? "system")}
@@ -40,26 +40,33 @@ export function ThemePicker({ initialColor, initialMode }: { initialColor: strin
           }))} />
       </Field>
       <Field label="Primary color">
-        <input type="color" name="primaryColor" className="h-11 w-16 cursor-pointer" value={color} disabled={pending}
-          onChange={(event) => setColor(event.currentTarget.value)} />
+        <span className="flex items-center gap-3">
+          <input type="color" name="primaryColor" className="h-[38px] w-14 cursor-pointer p-1 pointer-coarse:h-11" value={color}
+            disabled={pending} onChange={(event) => setColor(event.currentTarget.value)} />
+          <span className="font-mono text-sm text-muted tabular-nums">{color.toUpperCase()}</span>
+        </span>
       </Field>
-      <span className="self-end pb-2 font-mono text-sm text-muted">{color.toUpperCase()}</span>
+    </div>
+    <div>
+      <p className="mb-2 text-sm text-muted">Preview</p>
+      <ul aria-label="Theme palette preview"
+        className="grid grid-cols-[repeat(auto-fit,minmax(115px,1fr))] gap-2">
+        {swatches.map(({ label, classes }) => <li key={label}
+          className={`rounded-lg border px-3 py-2 text-sm font-semibold ${classes}`}>
+          {label}
+        </li>)}
+      </ul>
+    </div>
+    {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+    <div className="flex flex-wrap gap-2 border-t border-line pt-4">
+      <Button type="submit" variant="primary" disabled={pending || !hasChanges}>
+        {pending ? "Saving…" : "Save appearance"}
+      </Button>
       <Button type="button" disabled={pending || !hasChanges} onClick={() => {
         setColor(initialColor);
         setMode(initialMode);
         setResets(resets + 1);
       }}>Reset</Button>
-      <Button type="submit" variant="primary" disabled={pending || !hasChanges}>
-        {pending ? "Saving…" : "Save appearance"}
-      </Button>
-    </form>
-    {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-    <ul aria-label="Theme palette preview"
-      className="grid grid-cols-[repeat(auto-fit,minmax(115px,1fr))] gap-2">
-      {swatches.map(({ label, classes }) => <li key={label}
-        className={`rounded-lg border px-3 py-3 text-sm font-semibold ${classes}`}>
-        {label}
-      </li>)}
-    </ul>
-  </div>;
+    </div>
+  </form>;
 }

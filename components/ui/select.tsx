@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronDown } from "lucide-react";
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 
 export function Select({ name, options, defaultValue, placeholder = "Choose an option", required, disabled, onValueChange, "aria-label": ariaLabel }: {
   name: string;
@@ -18,6 +18,8 @@ export function Select({ name, options, defaultValue, placeholder = "Choose an o
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const items = useRef<(HTMLButtonElement | null)[]>([]);
+  const list = useRef<HTMLUListElement>(null);
+  const [place, setPlace] = useState<CSSProperties>();
   const entry = useRef(-1);
   const optionsId = useId();
   const selectedIndex = options.findIndex((option) => option.value === value);
@@ -34,9 +36,36 @@ export function Select({ name, options, defaultValue, placeholder = "Choose an o
     return () => document.removeEventListener("pointerdown", dismiss);
   }, [open]);
 
-  useEffect(() => {
-    if (open && entry.current >= 0) items.current[entry.current]?.focus();
+  // Fixed to the viewport so a scrolling ancestor, such as a modal, never clips or grows around the list.
+  useLayoutEffect(() => {
+    if (!open) return setPlace(undefined);
+    function position() {
+      const box = trigger.current?.getBoundingClientRect();
+      if (!box) return;
+      const below = window.innerHeight - box.bottom - 12, above = box.top - 12;
+      const up = below < 160 && above > below;
+      setPlace({
+        left: box.left, minWidth: box.width, maxHeight: Math.min(240, Math.max(up ? above : below, 96)),
+        ...(up ? { bottom: window.innerHeight - box.top + 4 } : { top: box.bottom + 4 }),
+      });
+    }
+    function scrolled(event: Event) {
+      if (!(event.target instanceof Node && list.current?.contains(event.target))) position();
+    }
+    position();
+    window.addEventListener("resize", position);
+    document.addEventListener("scroll", scrolled, true);
+    return () => {
+      window.removeEventListener("resize", position);
+      document.removeEventListener("scroll", scrolled, true);
+    };
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !place || entry.current < 0) return;
+    items.current[entry.current]?.focus();
+    entry.current = -1;
+  }, [open, place]);
 
   function close() {
     setOpen(false);
@@ -111,8 +140,8 @@ export function Select({ name, options, defaultValue, placeholder = "Choose an o
       tabIndex={-1} aria-hidden="true" autoComplete="off" name={name}
       value={value} required={required} disabled={disabled}
       onChange={() => {}} onFocus={() => trigger.current?.focus()} />
-    {open && <ul id={optionsId} role="listbox" aria-label={ariaLabel}
-      className="absolute start-0 top-[calc(100%+4px)] z-2 max-h-60 w-max min-w-full max-w-[min(220px,calc(100vw-68px))] list-none overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-popover"
+    {open && place && <ul id={optionsId} ref={list} role="listbox" aria-label={ariaLabel} style={place}
+      className="fixed z-50 w-max max-w-[min(420px,calc(100vw-24px))] list-none overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-popover"
       onClick={(event) => event.preventDefault()} onKeyDown={navigate}>
       {options.map((option, index) => <li key={option.value} role="option" aria-selected={option.value === value}>
         <button type="button" ref={(node) => { items.current[index] = node; }}

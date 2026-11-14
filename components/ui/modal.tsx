@@ -27,7 +27,7 @@ export function Modal({ title, closeHref, step, children }: {
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const onKey = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") leaveRef.current();
+      if (event.key === "Escape" && !event.defaultPrevented) leaveRef.current();
     };
     document.addEventListener("keydown", onKey);
     return () => {
