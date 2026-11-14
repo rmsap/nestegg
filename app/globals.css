@@ -2,28 +2,22 @@
 @source "./";
 @source "../components";
 
-:root {
-  --palette-ink: color-mix(in srgb, var(--theme-primary) 24%, #243029);
-  --palette-muted: color-mix(in srgb, var(--theme-primary) 16%, #4b5951);
-  --palette-primary-text: color-mix(in srgb, var(--theme-primary) 32%, #14251e);
-  --palette-accent: color-mix(in srgb, var(--theme-primary) 15%, white);
-  --palette-focus: color-mix(in srgb, var(--theme-primary) 49%, black);
-}
-
 @theme inline {
-  --color-ink: var(--palette-ink);
-  --color-muted: var(--palette-muted);
+  --color-ink: color-mix(in srgb, var(--theme-primary) 24%, #243029);
+  --color-muted: color-mix(in srgb, var(--theme-primary) 16%, #4b5951);
   --color-primary: var(--theme-primary);
   --color-on-primary: var(--theme-on-primary);
-  --color-primary-text: var(--palette-primary-text);
-  --color-accent: var(--palette-accent);
+  --color-primary-border: var(--theme-primary-border);
+  --color-primary-text: var(--theme-accent-strong);
+  --color-accent-strong: var(--theme-accent-strong);
+  --color-accent: color-mix(in srgb, var(--theme-accent-strong) 15%, white);
   --color-line: color-mix(in srgb, var(--theme-primary) 14%, white);
   --color-control: color-mix(in srgb, var(--theme-primary) 25%, white);
   --color-canvas: color-mix(in srgb, var(--theme-primary) 3%, white);
   --color-sidebar: color-mix(in srgb, var(--theme-primary) 8%, white);
   --color-inset: color-mix(in srgb, var(--theme-primary) 5%, white);
-  --color-progress: color-mix(in srgb, var(--theme-primary) 65%, #293c32);
-  --color-focus: var(--palette-focus);
+  --color-progress: var(--theme-accent-strong);
+  --color-focus: var(--theme-accent-strong);
 }
 
 @theme {

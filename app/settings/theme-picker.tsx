@@ -1,16 +1,17 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { type CSSProperties, useActionState, useState } from "react";
 import { Button } from "../../components/ui/button";
 import { Field } from "../../components/ui/field";
-import { defaultPrimaryColor } from "../../lib/theme";
+import { defaultPrimaryColor, themeVariables } from "../../lib/theme";
 import { saveAppearance } from "./actions";
 
 const swatches = [
-  { label: "Primary", classes: "bg-primary text-on-primary" },
-  { label: "Accent", classes: "bg-accent text-primary-text" },
-  { label: "Sidebar", classes: "bg-sidebar text-ink" },
-  { label: "Background", classes: "bg-canvas text-ink" },
+  { label: "Primary", classes: "border-primary-border bg-primary text-on-primary" },
+  { label: "Strong accent", classes: "border-accent-strong bg-accent-strong text-surface" },
+  { label: "Soft accent", classes: "border-line bg-accent text-primary-text" },
+  { label: "Sidebar", classes: "border-line bg-sidebar text-ink" },
+  { label: "Background", classes: "border-line bg-canvas text-ink" },
 ];
 
 export function ThemePicker({ initialColor }: { initialColor: string }) {
@@ -30,9 +31,10 @@ export function ThemePicker({ initialColor }: { initialColor: string }) {
       </Button>
     </form>
     {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-    <ul aria-label="Theme palette" className="grid grid-cols-4 gap-2 compact:grid-cols-2">
+    <ul aria-label="Theme palette preview" style={themeVariables(color) as CSSProperties}
+      className="grid grid-cols-[repeat(auto-fit,minmax(115px,1fr))] gap-2">
       {swatches.map(({ label, classes }) => <li key={label}
-        className={`rounded-lg border border-line px-3 py-3 text-sm font-semibold ${classes}`}>
+        className={`rounded-lg border px-3 py-3 text-sm font-semibold ${classes}`}>
         {label}
       </li>)}
     </ul>
