@@ -51,6 +51,8 @@ This prototype uses Node's built-in SQLite driver and USD integer cents. The pro
 
 `server/imports/transaction-provider.ts` defines the normalized accounts and transactions an adapter returns, and `server/imports/providers.ts` registers adapters by provider key. `server/imports/sync.ts` syncs one connection: it fetches a date window with the decrypted credential, then imports the batch atomically. A new provider implements the adapter contract and registers itself. Account identity is scoped to the connection and transaction identity to the imported account. A connection switch leaves both sets of records available under their own identities, so overlapping history needs explicit reconciliation.
 
+Enabled connections sync automatically on each provider's interval while the server is running. Set `NESTEGG_SCHEDULER=0` to turn the scheduler off.
+
 If you already have a Teller Sandbox enrollment token, place it in the ignored `.env.local` file as `TELLER_SANDBOX_TOKEN`. The importer stores it encrypted on a connection named Teller Sandbox. An Application ID is used for enrollment and cannot run the importer on its own. Run the following from the project directory:
 
 ```powershell
