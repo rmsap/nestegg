@@ -115,6 +115,19 @@ export const migrations = [
   {
     version: 5,
     sql: `
+      CREATE TABLE users (
+        id INTEGER PRIMARY KEY,
+        primary_color TEXT CHECK (
+          length(primary_color) = 7 AND substr(primary_color, 1, 1) = '#'
+          AND substr(primary_color, 2) NOT GLOB '*[^0-9a-f]*'
+        )
+      ) STRICT;
+      INSERT INTO users (id) VALUES (1);
+    `,
+  },
+  {
+    version: 6,
+    sql: `
       CREATE TABLE settings (
         id INTEGER PRIMARY KEY CHECK (id = 1),
         currency TEXT NOT NULL DEFAULT 'USD',
@@ -241,7 +254,7 @@ export const migrations = [
           FROM accounts WHERE provider IS NOT NULL
         ) WHERE key IN (SELECT key FROM providers) ORDER BY label;
 
-      CREATE TABLE accounts_v5 (
+      CREATE TABLE accounts_v6 (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         kind TEXT NOT NULL CHECK (kind IN ('bank', 'credit_card', 'investment', 'loan', 'other')),
@@ -257,14 +270,14 @@ export const migrations = [
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
         UNIQUE (connection_id, external_id)
       ) STRICT;
-      INSERT INTO accounts_v5 (id, name, kind, class, balance_cents, connection_id, external_id)
+      INSERT INTO accounts_v6 (id, name, kind, class, balance_cents, connection_id, external_id)
         SELECT a.id, a.name, a.kind, CASE WHEN a.kind = 'credit_card' THEN 'liability' ELSE 'asset' END,
           a.balance_cents, (SELECT c.id FROM connections c WHERE c.label = a.provider), a.external_id
         FROM accounts a;
       UPDATE sqlite_sequence SET seq = max(seq, COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'accounts'), 0))
-        WHERE name = 'accounts_v5';
+        WHERE name = 'accounts_v6';
       DROP TABLE accounts;
-      ALTER TABLE accounts_v5 RENAME TO accounts;
+      ALTER TABLE accounts_v6 RENAME TO accounts;
 
       CREATE TABLE balance_snapshots (
         account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
@@ -273,7 +286,7 @@ export const migrations = [
         PRIMARY KEY (account_id, date)
       ) STRICT;
 
-      CREATE TABLE transactions_v5 (
+      CREATE TABLE transactions_v6 (
         id INTEGER PRIMARY KEY,
         date TEXT NOT NULL,
         merchant TEXT NOT NULL,
@@ -290,19 +303,19 @@ export const migrations = [
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
         UNIQUE (account_id, external_id)
       ) STRICT;
-      INSERT INTO transactions_v5
+      INSERT INTO transactions_v6
         (id, date, merchant, account_id, amount_cents, category_id, kind, pending, reviewed, external_id, memo)
         SELECT id, date, merchant, account_id, amount_cents, category_id, kind, pending, reviewed, external_id, memo
         FROM transactions;
       DROP TABLE transactions;
-      ALTER TABLE transactions_v5 RENAME TO transactions;
+      ALTER TABLE transactions_v6 RENAME TO transactions;
       CREATE INDEX transaction_category_date ON transactions(category_id, date);
       CREATE INDEX transaction_date ON transactions(date);
       CREATE INDEX transaction_account_date ON transactions(account_id, date);
     `,
   },
   {
-    version: 6,
+    version: 7,
     sql: `
       ALTER TABLE providers ADD COLUMN settings_encrypted TEXT;
       ALTER TABLE transactions ADD COLUMN counterparty TEXT;
@@ -312,7 +325,7 @@ export const migrations = [
     `,
   },
   {
-    version: 7,
+    version: 8,
     sql: `
       INSERT INTO providers (key, name, enabled, sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES
         ('plaid', 'Plaid', 1, 360, 60, 14);

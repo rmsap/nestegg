@@ -6,9 +6,9 @@ export function PageHeading({ title, period }: {
   title: string;
   period?: { month: string; path: string; filters?: Record<string, string> };
 }) {
-  return <header className="page-heading">
-    <div>{period && <p className="muted">{monthLabel(period.month)}</p>}<h1>{title}</h1></div>
-    {period && <form className="actions" action={period.path} key={period.month}>
+  return <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div>{period && <p className="text-sm text-muted">{monthLabel(period.month)}</p>}<h1>{title}</h1></div>
+    {period && <form className="flex flex-wrap items-end gap-2.5" action={period.path} key={period.month}>
       {Object.entries(period.filters ?? {}).map(([name, value]) =>
         <input key={name} type="hidden" name={name} value={value} />)}
       <Field label="Reporting month">

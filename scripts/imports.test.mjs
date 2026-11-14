@@ -8,11 +8,11 @@ function connect(db) {
   return Number(db.prepare("INSERT INTO connections (provider, label) VALUES ('fixture', 'Fixture') RETURNING id").get().id);
 }
 
-test("a fresh database reaches version 7 with seeded settings and jobs", (t) => {
+test("a fresh database reaches version 8 with seeded settings and jobs", (t) => {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
   initialize(db);
-  assert.equal(db.prepare("PRAGMA user_version").get().user_version, 7);
+  assert.equal(db.prepare("PRAGMA user_version").get().user_version, 8);
   assert.deepEqual(db.prepare("SELECT id, currency FROM settings").all().map((row) => ({ ...row })), [{ id: 1, currency: "USD" }]);
   assert.deepEqual(db.prepare("SELECT key FROM providers ORDER BY key").all().map((row) => row.key), ["demo", "plaid", "simplefin"]);
   assert.deepEqual({ ...db.prepare("SELECT name, enabled, sync_interval_minutes, min_sync_interval_minutes, lookback_days FROM providers WHERE key = 'plaid'").get() },
@@ -21,11 +21,11 @@ test("a fresh database reaches version 7 with seeded settings and jobs", (t) => 
   assert.equal(db.prepare("PRAGMA foreign_keys").get().foreign_keys, 1);
 });
 
-test("upgrading a version 4 database preserves ids and links provider accounts", (t) => {
+test("upgrading a version 5 database preserves ids and links provider accounts", (t) => {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
-  for (const migration of migrations.slice(0, 4)) db.exec(migration.sql);
-  db.exec("PRAGMA user_version = 4");
+  for (const migration of migrations.slice(0, 5)) db.exec(migration.sql);
+  db.exec("PRAGMA user_version = 5");
   db.exec(`
     INSERT INTO accounts (id, name, kind, balance_cents) VALUES (3, 'Manual checking', 'bank', 1000);
     INSERT INTO accounts (id, name, kind, balance_cents, provider, external_id)
@@ -79,7 +79,7 @@ test("initialize on an up-to-date database changes nothing", (t) => {
   initialize(db);
   assert.deepEqual(schema(), before);
   assert.equal(db.prepare("SELECT currency FROM settings").get().currency, "EUR");
-  assert.equal(db.prepare("PRAGMA user_version").get().user_version, 7);
+  assert.equal(db.prepare("PRAGMA user_version").get().user_version, 8);
   assert.equal(db.prepare("PRAGMA foreign_keys").get().foreign_keys, 1);
 });
 
