@@ -90,10 +90,10 @@ export function checkAdapter(test, assert, { adapter, settings, request, payload
     t.after(() => db.close());
     initialize(db);
     const key = randomBytes(32);
-    if (Object.keys(settings).length) setProviderSettings(db, key, adapter, settings);
+    if (Object.keys(settings).length) setProviderSettings(db, 1, key, adapter, settings);
     const { credential, label } = await connect();
-    const id = createConnection(db, key, { provider: adapter.key, label, credential });
-    setConnectionEnabled(db, id, true);
+    const id = createConnection(db, 1, key, { provider: adapter.key, label, credential });
+    setConnectionEnabled(db, 1, id, true);
     const options = { now, request };
     const first = await syncConnection(db, key, id, adapter, options);
     assert.ok(first.accounts >= 0);

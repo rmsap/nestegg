@@ -7,7 +7,8 @@ import { connect } from "./actions";
 import { FieldInputs } from "./field-inputs";
 import { PlaidLink } from "./plaid-link";
 
-export async function ConnectStep({ adapter, name, connectionId, back }: {
+export async function ConnectStep({ userId, adapter, name, connectionId, back }: {
+  userId: number;
   adapter: ProviderAdapter;
   name: string;
   connectionId?: number;
@@ -16,7 +17,7 @@ export async function ConnectStep({ adapter, name, connectionId, back }: {
   const backLink = <ButtonLink href={back.href} size="sm">{back.label}</ButtonLink>;
   let begun;
   try {
-    begun = await beginConnection(database(), secretKey(), adapter, { connectionId });
+    begun = await beginConnection(database(), userId, secretKey(), adapter, { connectionId });
   } catch (error) {
     return <div className="grid justify-items-start gap-3">
       <p className="text-sm text-danger" role="alert">{error instanceof Error ? error.message : "Could not start the connection."}</p>

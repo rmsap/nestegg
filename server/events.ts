@@ -5,6 +5,7 @@ export type NewEvent = {
   type: string;
   actor: "owner" | "scheduler" | "system";
   message: string;
+  userId?: number;
   connectionId?: number;
   syncRunId?: number;
   jobRunId?: number;
@@ -13,8 +14,8 @@ export type NewEvent = {
 
 export function recordEvent(db: DatabaseSync, event: NewEvent) {
   return Number(db.prepare(`
-    INSERT INTO events (severity, type, actor, connection_id, sync_run_id, job_run_id, message, detail)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
-  `).get(event.severity, event.type, event.actor, event.connectionId ?? null, event.syncRunId ?? null,
+    INSERT INTO events (severity, type, actor, user_id, connection_id, sync_run_id, job_run_id, message, detail)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+  `).get(event.severity, event.type, event.actor, event.userId ?? null, event.connectionId ?? null, event.syncRunId ?? null,
     event.jobRunId ?? null, event.message, event.detail === undefined ? null : JSON.stringify(event.detail))?.id);
 }

@@ -311,9 +311,9 @@ function engine(t) {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
   initialize(db);
-  db.exec("INSERT INTO providers (key, name, sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES ('fixture', 'Fixture', 360, 15, 10)");
-  const id = createConnection(db, key, { provider: "fixture", label: "Fixture", credential: "tok" });
-  setConnectionEnabled(db, id, true);
+  db.exec("INSERT INTO providers (key, name, default_sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES ('fixture', 'Fixture', 360, 15, 10)");
+  const id = createConnection(db, 1, key, { provider: "fixture", label: "Fixture", credential: "tok" });
+  setConnectionEnabled(db, 1, id, true);
   const adapter = { key: "fixture", settings: [], accounts: [], async fetchAccounts() { return adapter.accounts; } };
   const sync = (days = 0) => syncConnection(db, key, id, adapter, { now: new Date(T0.getTime() + days * 86_400_000) });
   const rows = (sql, ...args) => db.prepare(sql).all(...args).map((row) => ({ ...row }));
@@ -328,7 +328,7 @@ test("a posted row that replaces a pending one updates it in place and keeps the
   set(row("p1", { pending: true }));
   const first = await sync();
   assert.deepEqual(counts(first), [1, 0, 0]);
-  db.exec("INSERT INTO categories (id, name) VALUES (1, 'Groceries')");
+  db.exec("INSERT INTO categories (id, user_id, name) VALUES (1, 1, 'Groceries')");
   db.exec("UPDATE transactions SET category_id = 1, reviewed = 1, memo = 'mine'");
   const before = rows("SELECT id, first_seen_sync_run_id FROM transactions");
   set(row("x1", { replaces: "p1", date: "2026-11-09", amountCents: -2599, counterparty: "Market Co", category: "groceries" }));

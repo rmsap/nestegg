@@ -7,10 +7,11 @@ type Options = { jobRunId: number; trigger: "schedule" | "manual"; now: Date; re
 export async function syncDueConnections(db: DatabaseSync, key: Buffer, adapters: Map<string, ProviderAdapter>, options: Options) {
   const { jobRunId, trigger, now, request } = options;
   const rows = db.prepare(`
-    SELECT c.id, c.provider, p.sync_interval_minutes AS interval,
+    SELECT c.id, c.provider, COALESCE(u.sync_interval_minutes, p.default_sync_interval_minutes) AS interval,
       (SELECT MAX(s.started_at) FROM sync_runs s WHERE s.connection_id = c.id) AS last_started
     FROM connections c JOIN providers p ON p.key = c.provider
-    WHERE c.enabled = 1 AND c.credential_encrypted IS NOT NULL AND p.enabled = 1 AND c.status != 'needs_reauth'
+    LEFT JOIN user_providers u ON u.user_id = c.user_id AND u.provider = c.provider
+    WHERE c.enabled = 1 AND c.credential_encrypted IS NOT NULL AND COALESCE(u.enabled, 1) = 1 AND c.status != 'needs_reauth'
     ORDER BY c.id
   `).all();
   let synced = 0, failed = 0;

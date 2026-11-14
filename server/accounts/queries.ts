@@ -1,4 +1,4 @@
-import { database } from "../db/connection";
+import type { DatabaseSync } from "node:sqlite";
 
 export type Account = {
   id: number;
@@ -8,8 +8,9 @@ export type Account = {
   balance_cents: number | null;
 };
 
-export function accounts() {
-  return database().prepare("SELECT id, name, kind, class, balance_cents FROM accounts ORDER BY id").all() as Account[];
+export function accounts(db: DatabaseSync, userId: number) {
+  return db.prepare("SELECT id, name, kind, class, balance_cents FROM accounts WHERE user_id = ? ORDER BY id")
+    .all(userId).map((row) => ({ ...row })) as Account[];
 }
 
 export function knownNetWorth(list: Account[]) {

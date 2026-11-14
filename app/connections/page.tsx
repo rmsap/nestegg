@@ -9,6 +9,7 @@ import { connectionAccounts, connectionList, providerList, readouts, recentEvent
 import { connectionStatus } from "../../server/connections/status";
 import { database } from "../../server/db/connection";
 import { adapters } from "../../server/imports/providers";
+import { currentUser } from "../../server/session";
 import { ActivityPanel } from "./activity-panel";
 import { ProviderChoices, usable, type Entry } from "./add-panel";
 import { AccountList, ConnectionBlock, FixAction } from "./connection-block";
@@ -26,18 +27,19 @@ export default async function ConnectionsPage({ searchParams }: {
   searchParams: Promise<{ added?: Param; add?: Param; provider?: Param; then?: Param; reauthorize?: Param; activity?: Param; notice?: Param; oauth_state_id?: Param }>;
 }) {
   const { added, add, provider: open, then, reauthorize, activity, notice, oauth_state_id: oauth } = await searchParams;
+  const user = await currentUser();
   const db = database();
   const now = new Date();
-  const providers = providerList(db);
-  const stats = readouts(db);
-  const accounts = connectionAccounts(db);
+  const providers = providerList(db, user.id);
+  const stats = readouts(db, user.id);
+  const accounts = connectionAccounts(db, user.id);
   const expanded = activity === "all";
-  const events = recentEvents(db, expanded ? 50 : 5);
+  const events = recentEvents(db, user.id, expanded ? 50 : 5);
   const entries: Entry[] = [...adapters.values()].flatMap((adapter) => {
     const provider = providers.find((row) => row.key === adapter.key);
     return provider ? [{ adapter, provider }] : [];
   });
-  const all = connectionList(db);
+  const all = connectionList(db, user.id);
   const items = all.map((connection) => ({ connection, status: connectionStatus(connection) }))
     .sort((a, b) => Number(b.status === "Failed") - Number(a.status === "Failed") || a.connection.label.localeCompare(b.connection.label));
   const failed = items.filter((item) => item.status === "Failed");
@@ -66,7 +68,7 @@ export default async function ConnectionsPage({ searchParams }: {
     else if (adding) modal = <Modal title={`Connect through ${adding.provider.name}`} closeHref="/connections" step={{ current: 2, total: 3 }}>
       <div className="grid gap-3">
         {inline}
-        <ConnectStep adapter={adding.adapter} name={adding.provider.name} back={{ href: "/connections?add=1", label: "Back" }} />
+        <ConnectStep userId={user.id} adapter={adding.adapter} name={adding.provider.name} back={{ href: "/connections?add=1", label: "Back" }} />
       </div>
     </Modal>;
   } else if (typeof reauthorize === "string") {
@@ -75,7 +77,7 @@ export default async function ConnectionsPage({ searchParams }: {
     if (target && adapter) modal = <Modal title={`Re-authorize ${target.label}`} closeHref="/connections">
       <div className="grid gap-3">
         {inline}
-        <ConnectStep adapter={adapter} name={nameOf(target.provider) ?? ""} connectionId={target.id} back={{ href: "/connections", label: "Cancel" }} />
+        <ConnectStep userId={user.id} adapter={adapter} name={nameOf(target.provider) ?? ""} connectionId={target.id} back={{ href: "/connections", label: "Cancel" }} />
       </div>
     </Modal>;
   } else if (typeof open === "string") {
@@ -83,7 +85,7 @@ export default async function ConnectionsPage({ searchParams }: {
     if (entry) modal = <Modal title={`${entry.provider.name} settings`} closeHref="/connections">
       <div className="grid gap-3">
         {inline}
-        <ProviderSettingsForm {...entry} then={then === "add"} />
+        <ProviderSettingsForm userId={user.id} {...entry} then={then === "add"} />
       </div>
     </Modal>;
   }
@@ -115,7 +117,7 @@ export default async function ConnectionsPage({ searchParams }: {
           <div className="divide-y divide-line">
             {items.map(({ connection, status }) => <ConnectionBlock key={connection.id} connection={connection} status={status} now={now}
               providerName={nameOf(connection.provider) ?? "Unknown provider"}
-              accounts={accounts.get(connection.id) ?? []} runs={recentRuns(db, connection.id)} />)}
+              accounts={accounts.get(connection.id) ?? []} runs={recentRuns(db, user.id, connection.id)} />)}
           </div>
         </Panel>
       </div>

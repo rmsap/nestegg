@@ -5,6 +5,8 @@ import { readId } from "../../lib/forms";
 import { income, parseLimit, transfer, uncategorized } from "../../lib/finance";
 import { parseMonth } from "../../lib/reporting";
 import { insertCategory, removeCategory, updateLimits } from "../../server/budget/mutations";
+import { database } from "../../server/db/connection";
+import { currentUser } from "../../server/session";
 
 function budget(message: string, month: string | null, editing = false): never {
   const params = new URLSearchParams({ notice: message });
@@ -14,6 +16,7 @@ function budget(message: string, month: string | null, editing = false): never {
 }
 
 export async function addCategory(form: FormData) {
+  const user = await currentUser();
   const month = parseMonth(form.get("month"));
   if (!month) budget("Choose a valid reporting month.", null);
   const input = form.get("name");
@@ -25,10 +28,11 @@ export async function addCategory(form: FormData) {
   if ([income, transfer, uncategorized].some((value) => value.toLowerCase() === name.toLowerCase())) {
     budget("That category name is reserved.", month);
   }
-  budget(insertCategory(name, month, limit) ? "Category added." : "A category with that name already exists.", month);
+  budget(insertCategory(database(), user.id, name, month, limit) ? "Category added." : "A category with that name already exists.", month);
 }
 
 export async function saveLimits(form: FormData) {
+  const user = await currentUser();
   const month = parseMonth(form.get("month"));
   if (!month) budget("Choose a valid reporting month.", null);
   const updates: { id: number; limit: number }[] = [];
@@ -39,14 +43,15 @@ export async function saveLimits(form: FormData) {
     if (!id || limit === null) budget("Enter a valid limit for each category.", month, true);
     updates.push({ id, limit });
   }
-  updateLimits(month, updates);
+  updateLimits(database(), user.id, month, updates);
   budget("Budget limits saved.", month);
 }
 
 export async function deleteCategory(form: FormData) {
+  const user = await currentUser();
   const month = parseMonth(form.get("month"));
   if (!month) budget("Choose a valid reporting month.", null);
-  const result = removeCategory(readId(form.get("category")), readId(form.get("replacement")));
+  const result = removeCategory(database(), user.id, readId(form.get("category")), readId(form.get("replacement")));
   const messages = {
     deleted: "Category deleted.",
     missing: "That category no longer exists.",

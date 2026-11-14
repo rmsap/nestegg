@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { createConnection, deleteConnection, replaceCredential, setConnectionEnabled, setSyncInterval } from "../server/connections/mutations.ts";
+import { createConnection, deleteConnection, replaceCredential, setConnectionEnabled } from "../server/connections/mutations.ts";
 import { initialize } from "../server/db/migrations.ts";
+import { setSyncInterval } from "../server/imports/provider-settings.ts";
 import { syncConnection } from "../server/imports/sync.ts";
 import { ProviderError } from "../server/imports/transaction-provider.ts";
 import { decrypt } from "../server/secrets.ts";
@@ -17,10 +18,10 @@ function setup(t, { enable = true } = {}) {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
   initialize(db);
-  db.exec(`INSERT INTO providers (key, name, sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES
+  db.exec(`INSERT INTO providers (key, name, default_sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES
     ('fixture', 'Fixture', 360, 15, 10), ('fixture-b', 'Fixture B', 360, 15, 10)`);
-  const id = createConnection(db, key, { provider: "fixture", label: "Fixture", credential: secret });
-  if (enable) setConnectionEnabled(db, id, true);
+  const id = createConnection(db, 1, key, { provider: "fixture", label: "Fixture", credential: secret });
+  if (enable) setConnectionEnabled(db, 1, id, true);
   const adapter = {
     key: "fixture", settings: [], calls: [], accounts: [], error: null,
     async fetchAccounts(ctx, credential, window) {
@@ -78,7 +79,7 @@ test("a repeat sync is idempotent and preserves the user's category and review",
   const first = await sync();
   assert.deepEqual([first.accounts, first.added, first.updated, first.removed], [1, 3, 0, 0]);
   assert.equal(postedSpending(), 500);
-  db.exec("INSERT INTO categories (id, name) VALUES (1, 'Groceries')");
+  db.exec("INSERT INTO categories (id, user_id, name) VALUES (1, 1, 'Groceries')");
   db.exec("UPDATE transactions SET category_id = 1, reviewed = 1 WHERE external_id = 'purchase-1'");
   purchase.pending = false;
   purchase.date = "2026-11-09";
@@ -205,7 +206,7 @@ test("a sync that cannot start is refused without a run", async (t) => {
   };
   await refuse(({ db }) => db.exec("UPDATE connections SET enabled = 0"), /disabled/);
   await refuse(({ db }) => db.exec("UPDATE connections SET credential_encrypted = NULL"), /no credential/);
-  await refuse(({ db }) => db.exec("UPDATE providers SET enabled = 0 WHERE key = 'fixture'"), /provider is disabled/);
+  await refuse(({ db }) => db.exec("INSERT INTO user_providers (user_id, provider, enabled, sync_interval_minutes) VALUES (1, 'fixture', 0, 360)"), /provider is disabled/);
   await refuse(({ adapter }) => { adapter.key = "fixture-b"; }, /does not match/);
   await assert.rejects(syncConnection(setup(t).db, key, 99, { key: "fixture" }, { now: T0 }), /Unknown connection/);
 });
@@ -259,29 +260,29 @@ test("connection management validates input and records events", (t) => {
   const { db, id, rows, one } = setup(t, { enable: false });
   assert.equal(one("SELECT enabled, status FROM connections").enabled, 0);
   assert.equal(one("SELECT status FROM connections").status, "active");
-  assert.throws(() => createConnection(db, key, { provider: "nope", label: "x", credential: "c" }), /Unknown provider/);
-  assert.throws(() => createConnection(db, key, { provider: "fixture", label: "  ", credential: "c" }), /Label/);
-  assert.throws(() => createConnection(db, key, { provider: "fixture", label: "x".repeat(81), credential: "c" }), /Label/);
-  db.exec("UPDATE providers SET enabled = 0 WHERE key = 'fixture-b'");
-  assert.throws(() => createConnection(db, key, { provider: "fixture-b", label: "x", credential: "c" }), /disabled/);
+  assert.throws(() => createConnection(db, 1, key,{ provider: "nope", label: "x", credential: "c" }), /Unknown provider/);
+  assert.throws(() => createConnection(db, 1, key,{ provider: "fixture", label: "  ", credential: "c" }), /Label/);
+  assert.throws(() => createConnection(db, 1, key,{ provider: "fixture", label: "x".repeat(81), credential: "c" }), /Label/);
+  db.exec("INSERT INTO user_providers (user_id, provider, enabled, sync_interval_minutes) VALUES (1, 'fixture-b', 0, 360)");
+  assert.throws(() => createConnection(db, 1, key, { provider: "fixture-b", label: "x", credential: "c" }), /disabled/);
 
   db.exec("UPDATE connections SET credential_encrypted = NULL");
-  assert.throws(() => setConnectionEnabled(db, id, true), /credential/);
-  assert.throws(() => setConnectionEnabled(db, 99, true), /not found/);
-  replaceCredential(db, key, id, "new-secret");
+  assert.throws(() => setConnectionEnabled(db, 1, id, true), /credential/);
+  assert.throws(() => setConnectionEnabled(db, 1, 99, true), /not found/);
+  replaceCredential(db, 1, key, id, "new-secret");
   assert.equal(decrypt(key, "connection-credential", one("SELECT credential_encrypted FROM connections").credential_encrypted), "new-secret");
-  setConnectionEnabled(db, id, true);
-  setConnectionEnabled(db, id, false);
+  setConnectionEnabled(db, 1, id, true);
+  setConnectionEnabled(db, 1, id, false);
 
-  assert.throws(() => setSyncInterval(db, "fixture", 14), /15 to 10080/);
-  assert.throws(() => setSyncInterval(db, "fixture", 20000), /10080/);
-  assert.throws(() => setSyncInterval(db, "fixture", 30.5), /whole number/);
-  setSyncInterval(db, "fixture", 30);
-  assert.equal(one("SELECT sync_interval_minutes AS minutes FROM providers WHERE key = 'fixture'").minutes, 30);
+  assert.throws(() => setSyncInterval(db, 1, "fixture", 14), /15 to 10080/);
+  assert.throws(() => setSyncInterval(db, 1, "fixture", 20000), /10080/);
+  assert.throws(() => setSyncInterval(db, 1, "fixture", 30.5), /whole number/);
+  setSyncInterval(db, 1, "fixture", 30);
+  assert.equal(one("SELECT sync_interval_minutes AS minutes FROM user_providers WHERE user_id = ? AND provider = 'fixture'", 1).minutes, 30);
 
-  db.prepare("INSERT INTO accounts (id, name, kind, class, connection_id, external_id) VALUES (1, 'Checking', 'bank', 'asset', ?, 'a')").run(id);
-  deleteConnection(db, id);
-  assert.throws(() => deleteConnection(db, id), /not found/);
+  db.prepare("INSERT INTO accounts (id, user_id, name, kind, class, connection_id, external_id) VALUES (1, 1, 'Checking', 'bank', 'asset', ?, 'a')").run(id);
+  deleteConnection(db, 1, id);
+  assert.throws(() => deleteConnection(db, 1, id), /not found/);
   assert.equal(one("SELECT connection_id FROM accounts WHERE id = 1").connection_id, null);
   assert.deepEqual(rows("SELECT type, severity FROM events ORDER BY id").map((row) => row.type), [
     "connection.created", "connection.credential_replaced", "connection.enabled", "connection.disabled",

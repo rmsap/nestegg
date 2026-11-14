@@ -50,7 +50,7 @@ function setup(t) {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
   initialize(db);
-  db.exec(`INSERT INTO providers (key, name, sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES
+  db.exec(`INSERT INTO providers (key, name, default_sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES
     ('fixture', 'Fixture', 360, 15, 10), ('fixture-b', 'Fixture B', 360, 15, 10)`);
   const rows = (sql, ...args) => db.prepare(sql).all(...args).map((row) => ({ ...row }));
   const one = (sql, ...args) => ({ ...db.prepare(sql).get(...args) });
@@ -67,26 +67,27 @@ test("upgrading a version 6 database keeps transactions and adds the new columns
     INSERT INTO transactions (id, date, merchant, account_id, amount_cents, kind, memo) VALUES (1, '2026-11-01', 'Market', 1, -900, 'expense', 'Weekly shop');
   `);
   initialize(db);
-  assert.equal(db.prepare("PRAGMA user_version").get().user_version, 8);
+  assert.equal(db.prepare("PRAGMA user_version").get().user_version, migrations.length);
   assert.deepEqual({ ...db.prepare("SELECT id, merchant, amount_cents, memo, counterparty, provider_category FROM transactions").get() },
     { id: 1, merchant: "Market", amount_cents: -900, memo: "Weekly shop", counterparty: null, provider_category: null });
-  assert.deepEqual({ ...db.prepare("SELECT name, enabled, sync_interval_minutes, min_sync_interval_minutes, lookback_days, settings_encrypted FROM providers WHERE key = 'demo'").get() },
+  assert.deepEqual({ ...db.prepare(`SELECT p.name, u.enabled, u.sync_interval_minutes, p.min_sync_interval_minutes, p.lookback_days, u.settings_encrypted
+    FROM providers p JOIN user_providers u ON u.provider = p.key AND u.user_id = ? WHERE p.key = 'demo'`).get(1) },
     { name: "Demo Bank", enabled: 1, sync_interval_minutes: 60, min_sync_interval_minutes: 1, lookback_days: 10, settings_encrypted: null });
 });
 
 test("provider settings round-trip through encryption", (t) => {
   const { db } = setup(t);
   const adapter = fixture();
-  assert.deepEqual(providerSettings(db, key, "fixture"), {});
-  setProviderSettings(db, key, adapter, values);
-  assert.deepEqual(providerSettings(db, key, "fixture"), values);
+  assert.deepEqual(providerSettings(db, 1, key,"fixture"), {});
+  setProviderSettings(db, 1, key,adapter, values);
+  assert.deepEqual(providerSettings(db, 1, key,"fixture"), values);
 });
 
 test("describing provider settings never returns secret or file values", (t) => {
   const { db } = setup(t);
   const adapter = fixture();
-  setProviderSettings(db, key, adapter, values);
-  const described = describeProviderSettings(db, key, adapter);
+  setProviderSettings(db, 1, key,adapter, values);
+  const described = describeProviderSettings(db, 1, key,adapter);
   assert.deepEqual(described.map((field) => [field.name, field.value, field.set]), [
     ["host", "host.example.invalid", undefined], ["mode", "a", undefined], ["token", undefined, true], ["pem", undefined, true],
   ]);
@@ -97,43 +98,43 @@ test("describing provider settings never returns secret or file values", (t) => 
 test("an empty secret or file value keeps the stored one", (t) => {
   const { db } = setup(t);
   const adapter = fixture();
-  setProviderSettings(db, key, adapter, values);
-  setProviderSettings(db, key, adapter, { host: "other.example.invalid", token: "", pem: "" });
-  assert.deepEqual(providerSettings(db, key, "fixture"), { ...values, host: "other.example.invalid" });
+  setProviderSettings(db, 1, key,adapter, values);
+  setProviderSettings(db, 1, key,adapter, { host: "other.example.invalid", token: "", pem: "" });
+  assert.deepEqual(providerSettings(db, 1, key,"fixture"), { ...values, host: "other.example.invalid" });
 });
 
 test("unknown fields, bad choices and missing required fields are rejected", (t) => {
   const { db, rows } = setup(t);
   const adapter = fixture();
-  assert.throws(() => setProviderSettings(db, key, adapter, { ...values, extra: "x" }), /Unknown setting/);
-  assert.throws(() => setProviderSettings(db, key, adapter, { ...values, mode: "c" }), /choices/);
-  assert.throws(() => setProviderSettings(db, key, adapter, { host: "h" }), /required/);
-  assert.throws(() => setProviderSettings(db, key, adapter, { ...values, host: 5 }), /text/);
-  assert.throws(() => setProviderSettings(db, key, adapter, { ...values, pem: "x".repeat(20_001) }), /too long/);
-  assert.deepEqual(providerSettings(db, key, "fixture"), {});
+  assert.throws(() => setProviderSettings(db, 1, key,adapter, { ...values, extra: "x" }), /Unknown setting/);
+  assert.throws(() => setProviderSettings(db, 1, key,adapter, { ...values, mode: "c" }), /choices/);
+  assert.throws(() => setProviderSettings(db, 1, key,adapter, { host: "h" }), /required/);
+  assert.throws(() => setProviderSettings(db, 1, key,adapter, { ...values, host: 5 }), /text/);
+  assert.throws(() => setProviderSettings(db, 1, key,adapter, { ...values, pem: "x".repeat(20_001) }), /too long/);
+  assert.deepEqual(providerSettings(db, 1, key,"fixture"), {});
   assert.equal(rows("SELECT * FROM events WHERE type = 'provider.settings_changed'").length, 0);
 });
 
 test("stored provider settings do not contain plaintext", (t) => {
   const { db, one } = setup(t);
-  setProviderSettings(db, key, fixture(), values);
-  const stored = one("SELECT settings_encrypted FROM providers WHERE key = 'fixture'").settings_encrypted;
+  setProviderSettings(db, 1, key,fixture(), values);
+  const stored = one("SELECT settings_encrypted FROM user_providers WHERE user_id = ? AND provider = 'fixture'", 1).settings_encrypted;
   for (const value of [values.host, values.token, values.pem]) assert.ok(!stored.includes(value));
   assert.deepEqual(JSON.parse(decrypt(key, "provider-settings", stored)), values);
 });
 
 test("the settings event lists field names only and enabling a provider is recorded", (t) => {
   const { db, rows } = setup(t);
-  setProviderSettings(db, key, fixture(), values);
+  setProviderSettings(db, 1, key,fixture(), values);
   const [event] = rows("SELECT severity, actor, detail FROM events WHERE type = 'provider.settings_changed'");
   assert.deepEqual([event.severity, event.actor], ["info", "owner"]);
   assert.deepEqual(JSON.parse(event.detail).fields, ["host", "mode", "token", "pem"]);
   for (const value of [values.host, values.token, values.pem]) assert.ok(!event.detail.includes(value));
-  setProviderEnabled(db, "fixture", false);
-  setProviderEnabled(db, "fixture", true);
+  setProviderEnabled(db, 1,"fixture", false);
+  setProviderEnabled(db, 1,"fixture", true);
   assert.deepEqual(rows("SELECT type FROM events WHERE type LIKE 'provider.%abled' ORDER BY id").map((row) => row.type),
     ["provider.disabled", "provider.enabled"]);
-  assert.throws(() => setProviderEnabled(db, "nope", true), /Unknown provider/);
+  assert.throws(() => setProviderEnabled(db, 1,"nope", true), /Unknown provider/);
 });
 
 const EXPIRED = /This link attempt has expired\. Start again\./;
@@ -141,9 +142,9 @@ const EXPIRED = /This link attempt has expired\. Start again\./;
 test("a connect state completes once issued", async (t) => {
   const { db } = setup(t);
   const adapter = fixture();
-  const { start, state } = await beginConnection(db, key, adapter, { now: T0 });
+  const { start, state } = await beginConnection(db, 1, key,adapter, { now: T0 });
   assert.equal(start.kind, "form");
-  const id = await completeConnection(db, key, adapter, state, { any: 1 }, { now: later(0.005) });
+  const id = await completeConnection(db, 1, key,adapter, state, { any: 1 }, { now: later(0.005) });
   assert.ok(id > 0);
   const [begin, complete] = adapter.calls;
   assert.ok(typeof begin.ctx.nonce === "string" && begin.ctx.nonce.length > 0);
@@ -154,11 +155,11 @@ test("a connect state completes once issued", async (t) => {
 test("a tampered connect state is rejected", async (t) => {
   const { db } = setup(t);
   const adapter = fixture();
-  const { state } = await beginConnection(db, key, adapter, { now: T0 });
+  const { state } = await beginConnection(db, 1, key,adapter, { now: T0 });
   const [body, signature] = state.split(".");
   const flip = (value) => (value[0] === "A" ? "B" : "A") + value.slice(1);
   for (const bad of [flip(body) + "." + signature, body + "." + flip(signature), body, "", "x.y.z"]) {
-    await assert.rejects(completeConnection(db, key, adapter, bad, {}, { now: T0 }), EXPIRED);
+    await assert.rejects(completeConnection(db, 1, key,adapter, bad, {}, { now: T0 }), EXPIRED);
   }
   assert.equal(adapter.calls.filter((call) => call.step === "complete").length, 0);
 });
@@ -166,37 +167,37 @@ test("a tampered connect state is rejected", async (t) => {
 test("an expired connect state is rejected", async (t) => {
   const { db } = setup(t);
   const adapter = fixture();
-  const { state } = await beginConnection(db, key, adapter, { now: T0 });
-  await assert.rejects(completeConnection(db, key, adapter, state, {}, { now: new Date(T0.getTime() + 30 * 60_000 + 1) }), EXPIRED);
+  const { state } = await beginConnection(db, 1, key,adapter, { now: T0 });
+  await assert.rejects(completeConnection(db, 1, key,adapter, state, {}, { now: new Date(T0.getTime() + 30 * 60_000 + 1) }), EXPIRED);
 });
 
 test("a connect state issued for another provider is rejected", async (t) => {
   const { db } = setup(t);
-  const { state } = await beginConnection(db, key, fixture("fixture"), { now: T0 });
-  await assert.rejects(completeConnection(db, key, fixture("fixture-b"), state, {}, { now: T0 }), EXPIRED);
+  const { state } = await beginConnection(db, 1, key,fixture("fixture"), { now: T0 });
+  await assert.rejects(completeConnection(db, 1, key,fixture("fixture-b"), state, {}, { now: T0 }), EXPIRED);
 });
 
 test("connecting creates a disabled connection holding the adapter credential", async (t) => {
   const { db, one } = setup(t);
   const adapter = fixture();
-  const { state } = await beginConnection(db, key, adapter, { now: T0 });
-  const id = await completeConnection(db, key, adapter, state, {}, { now: T0 });
+  const { state } = await beginConnection(db, 1, key,adapter, { now: T0 });
+  const id = await completeConnection(db, 1, key,adapter, state, {}, { now: T0 });
   const row = one("SELECT provider, label, enabled, status, credential_encrypted FROM connections WHERE id = ?", id);
   assert.deepEqual([row.provider, row.label, row.enabled, row.status], ["fixture", "Fixture Bank", 0, "active"]);
   assert.equal(decrypt(key, "connection-credential", row.credential_encrypted), "cred-2");
   assert.equal(adapter.calls[0].existing, undefined);
   assert.equal(adapter.calls[1].existing, undefined);
-  setProviderEnabled(db, "fixture", false);
-  await assert.rejects(beginConnection(db, key, adapter, { now: T0 }), /disabled/);
+  setProviderEnabled(db, 1,"fixture", false);
+  await assert.rejects(beginConnection(db, 1, key,adapter, { now: T0 }), /disabled/);
 });
 
 test("repairing a connection replaces its credential in place and passes the old one", async (t) => {
   const { db, one, rows } = setup(t);
   const adapter = fixture();
-  const id = createConnection(db, key, { provider: "fixture", label: "Old", credential: "old-credential" });
+  const id = createConnection(db, 1, key,{ provider: "fixture", label: "Old", credential: "old-credential" });
   db.prepare("UPDATE connections SET status = 'needs_reauth', last_error = 'bad' WHERE id = ?").run(id);
-  const { state } = await beginConnection(db, key, adapter, { connectionId: id, now: T0 });
-  const repaired = await completeConnection(db, key, adapter, state, {}, { now: T0 });
+  const { state } = await beginConnection(db, 1, key,adapter, { connectionId: id, now: T0 });
+  const repaired = await completeConnection(db, 1, key,adapter, state, {}, { now: T0 });
   assert.equal(repaired, id);
   assert.equal(adapter.calls[0].existing, "old-credential");
   assert.equal(adapter.calls[1].existing, "old-credential");
@@ -209,8 +210,8 @@ test("repairing a connection replaces its credential in place and passes the old
 test("disconnecting calls the adapter and deletes the connection", async (t) => {
   const { db, rows } = setup(t);
   const adapter = fixture();
-  const id = createConnection(db, key, { provider: "fixture", label: "Fixture", credential: "to-disconnect" });
-  await disconnectAndDelete(db, key, adapter, id);
+  const id = createConnection(db, 1, key,{ provider: "fixture", label: "Fixture", credential: "to-disconnect" });
+  await disconnectAndDelete(db, 1, key,adapter, id);
   assert.deepEqual(adapter.disconnected, ["to-disconnect"]);
   assert.equal(rows("SELECT id FROM connections").length, 0);
   assert.equal(rows("SELECT * FROM events WHERE type = 'connection.deleted'").length, 1);
@@ -220,8 +221,8 @@ test("disconnecting calls the adapter and deletes the connection", async (t) => 
 test("a failing disconnect still deletes the connection and records a warning", async (t) => {
   const { db, rows } = setup(t);
   const adapter = fixture("fixture", { async disconnect() { throw new Error("boom credential-xyz"); } });
-  const id = createConnection(db, key, { provider: "fixture", label: "Fixture", credential: "credential-xyz" });
-  await disconnectAndDelete(db, key, adapter, id);
+  const id = createConnection(db, 1, key,{ provider: "fixture", label: "Fixture", credential: "credential-xyz" });
+  await disconnectAndDelete(db, 1, key,adapter, id);
   assert.equal(rows("SELECT id FROM connections").length, 0);
   const events = rows("SELECT severity, detail FROM events WHERE type = 'connection.disconnect_failed'");
   assert.equal(events.length, 1);
@@ -231,8 +232,8 @@ test("a failing disconnect still deletes the connection and records a warning", 
 
 function engine(t, adapter = fixture()) {
   const env = setup(t);
-  const id = createConnection(env.db, key, { provider: "fixture", label: "Fixture", credential: "tok" });
-  setConnectionEnabled(env.db, id, true);
+  const id = createConnection(env.db, 1, key,{ provider: "fixture", label: "Fixture", credential: "tok" });
+  setConnectionEnabled(env.db, 1, id,true);
   const sync = (now = T0, options = {}) => syncConnection(env.db, key, id, adapter, { now, ...options });
   return { ...env, id, adapter, sync };
 }
@@ -245,7 +246,7 @@ test("the engine stores counterparty and category, refreshes them and leaves use
   const first = await sync();
   assert.equal(first.added, 1);
   assert.deepEqual(one("SELECT counterparty, provider_category FROM transactions"), { counterparty: "Amazon", provider_category: "shopping" });
-  db.exec("INSERT INTO categories (id, name) VALUES (1, 'Shopping')");
+  db.exec("INSERT INTO categories (id, user_id, name) VALUES (1, 1, 'Shopping')");
   db.exec("UPDATE transactions SET category_id = 1, reviewed = 1, memo = 'mine'");
   adapter.accounts = [account([txn({ counterparty: "Amazon Marketplace", category: "retail" })])];
   const second = await sync(later(1));
@@ -261,7 +262,7 @@ test("the engine uses the adapter transport and passes decrypted provider settin
   const seen = [];
   const adapter = fixture("fixture", { transport(settings) { seen.push(settings); return transport; } });
   const { db, sync } = engine(t, adapter);
-  setProviderSettings(db, key, adapter, values);
+  setProviderSettings(db, 1, key,adapter, values);
   adapter.accounts = [];
   await sync();
   const ctx = adapter.calls.find((call) => call.step === "fetch").ctx;
@@ -276,15 +277,15 @@ test("the engine uses the adapter transport and passes decrypted provider settin
 
 test("undecryptable provider settings fail the run", async (t) => {
   const { db, sync, one } = engine(t);
-  db.exec("UPDATE providers SET settings_encrypted = 'v1.bad.bad.bad' WHERE key = 'fixture'");
+  db.exec("INSERT INTO user_providers (user_id, provider, settings_encrypted, sync_interval_minutes) VALUES (1, 'fixture', 'v1.bad.bad.bad', 360)");
   await assert.rejects(sync(), /Could not decrypt/);
   assert.equal(one("SELECT status FROM sync_runs").status, "failed");
 });
 
 async function demoConnection(db, name, scenario = "healthy") {
-  const { state } = await beginConnection(db, key, demo, { now: T0 });
-  const id = await completeConnection(db, key, demo, state, { name, scenario }, { now: T0 });
-  setConnectionEnabled(db, id, true);
+  const { state } = await beginConnection(db, 1, key,demo, { now: T0 });
+  const id = await completeConnection(db, 1, key,demo, state, { name, scenario }, { now: T0 });
+  setConnectionEnabled(db, 1, id,true);
   return id;
 }
 const demoSync = (db, id, now = T0) => syncConnection(db, key, id, demo, { now });
@@ -360,8 +361,8 @@ test("repairing a demo connection under a new name keeps its ids", async (t) => 
     transactions: rows("SELECT external_id FROM transactions ORDER BY id").map((row) => row.external_id),
   });
   const before = snapshot();
-  const { state } = await beginConnection(db, key, demo, { connectionId: id, now: T0 });
-  await completeConnection(db, key, demo, state, { name: "Alpha Renamed", scenario: "healthy" }, { now: T0 });
+  const { state } = await beginConnection(db, 1, key,demo, { connectionId: id, now: T0 });
+  await completeConnection(db, 1, key,demo, state, { name: "Alpha Renamed", scenario: "healthy" }, { now: T0 });
   const again = await demoSync(db, id);
   assert.equal(again.added, 0);
   assert.deepEqual(snapshot(), before);

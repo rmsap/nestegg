@@ -22,18 +22,18 @@ try {
       console.log("Demo database already contains data. It was left as is.");
     } else {
       db.exec(`
-        INSERT INTO accounts (id, name, kind, class, balance_cents) VALUES
-          (1, 'Everyday checking', 'bank', 'asset', 485000),
-          (2, 'High-yield savings', 'bank', 'asset', 1645000),
-          (3, 'Rewards card', 'credit_card', 'liability', 245000),
-          (4, 'Manual investment account', 'investment', 'asset', 2400000);
-        INSERT INTO categories (id, name) VALUES
-          (1, 'Housing'), (2, 'Groceries'), (3, 'Dining'),
-          (4, 'Shopping'), (5, 'Transport'), (6, 'Other essentials');
-        INSERT INTO budget_months VALUES ('2026-11', 680000);
-        INSERT INTO budget_limits VALUES
-          ('2026-11', 1, 200000), ('2026-11', 2, 65000), ('2026-11', 3, 30000),
-          ('2026-11', 4, 25000), ('2026-11', 5, 30000), ('2026-11', 6, 170000);
+        INSERT INTO accounts (id, user_id, name, kind, class, balance_cents) VALUES
+          (1, 1, 'Everyday checking', 'bank', 'asset', 485000),
+          (2, 1, 'High-yield savings', 'bank', 'asset', 1645000),
+          (3, 1, 'Rewards card', 'credit_card', 'liability', 245000),
+          (4, 1, 'Manual investment account', 'investment', 'asset', 2400000);
+        INSERT INTO categories (id, user_id, name) VALUES
+          (1, 1, 'Housing'), (2, 1, 'Groceries'), (3, 1, 'Dining'),
+          (4, 1, 'Shopping'), (5, 1, 'Transport'), (6, 1, 'Other essentials');
+        INSERT INTO budget_months (user_id, month, expected_income_cents) VALUES (1, '2026-11', 680000);
+        INSERT INTO budget_limits (user_id, month, category_id, limit_cents) VALUES
+          (1, '2026-11', 1, 200000), (1, '2026-11', 2, 65000), (1, '2026-11', 3, 30000),
+          (1, '2026-11', 4, 25000), (1, '2026-11', 5, 30000), (1, '2026-11', 6, 170000);
         INSERT INTO transactions
           (id, date, merchant, account_id, amount_cents, category_id, kind, pending, reviewed) VALUES
           (1,'2026-11-08','Whole Foods Market',3,-8642,2,'expense',0,0),

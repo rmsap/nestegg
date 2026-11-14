@@ -8,11 +8,11 @@ import { saveProvider } from "./actions";
 import type { Entry } from "./add-panel";
 import { FieldInputs } from "./field-inputs";
 
-export function ProviderSettingsForm({ adapter, provider, then }: Entry & { then: boolean }) {
+export function ProviderSettingsForm({ userId, adapter, provider, then }: Entry & { userId: number; then: boolean }) {
   return <form className="grid gap-3" action={saveProvider}>
     <input type="hidden" name="provider" value={adapter.key} />
     {then && <input type="hidden" name="then" value="add" />}
-    <FieldInputs fields={describeProviderSettings(database(), secretKey(), adapter)} prefix="setting-" />
+    <FieldInputs fields={describeProviderSettings(database(), userId, secretKey(), adapter)} prefix="setting-" />
     <Field label="Sync every (minutes)">
       <input name="interval" type="number" min={provider.min_sync_interval_minutes} max="10080" step="1"
         defaultValue={provider.sync_interval_minutes} required />

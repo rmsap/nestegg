@@ -3,7 +3,9 @@ import { connection } from "next/server";
 import type { CSSProperties } from "react";
 import { Navigation } from "../components/navigation";
 import { primaryForeground } from "../lib/theme";
-import { ownerPrimaryColor } from "../server/users/appearance";
+import { database } from "../server/db/connection";
+import { currentUser } from "../server/session";
+import { userPrimaryColor } from "../server/users/users";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,7 +15,8 @@ export const metadata: Metadata = {
 
 export default async function Layout({ children }: Readonly<{ children: React.ReactNode }>) {
   await connection();
-  const color = ownerPrimaryColor();
+  const user = await currentUser();
+  const color = userPrimaryColor(database(), user.id);
   const palette = {
     "--theme-primary": color,
     "--theme-on-primary": primaryForeground(color),

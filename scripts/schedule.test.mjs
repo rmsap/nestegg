@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { createConnection, setConnectionEnabled, setSyncInterval } from "../server/connections/mutations.ts";
+import { createConnection, setConnectionEnabled } from "../server/connections/mutations.ts";
 import { initialize } from "../server/db/migrations.ts";
+import { setSyncInterval } from "../server/imports/provider-settings.ts";
 import { nextRun } from "../server/schedule/cron.ts";
 import { runDueJobs, runJob, setJobSchedule } from "../server/schedule/jobs.ts";
 import { syncDueConnections } from "../server/schedule/sync-job.ts";
@@ -18,7 +19,7 @@ function setup(t) {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
   initialize(db);
-  db.exec(`INSERT INTO providers (key, name, sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES
+  db.exec(`INSERT INTO providers (key, name, default_sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES
     ('fixture', 'Fixture', 360, 15, 10), ('fixture-b', 'Fixture B', 360, 15, 10)`);
   const rows = (sql, ...args) => db.prepare(sql).all(...args).map((row) => ({ ...row }));
   const one = (sql, ...args) => ({ ...db.prepare(sql).get(...args) });
@@ -38,8 +39,8 @@ function adapterFor(provider) {
 }
 
 function connect(db, provider = "fixture", enable = true) {
-  const id = createConnection(db, key, { provider, label: provider + id_(), credential: "tok_" + provider });
-  if (enable) setConnectionEnabled(db, id, true);
+  const id = createConnection(db, 1, key, { provider, label: provider + id_(), credential: "tok_" + provider });
+  if (enable) setConnectionEnabled(db, 1, id, true);
   return id;
 }
 let counter = 0;
@@ -153,7 +154,7 @@ test("a connection is due when never synced and again after the provider interva
   assert.deepEqual(await sync(db, [fixture], minutes(359)), { synced: 0, failed: 0 });
   assert.deepEqual(await sync(db, [fixture], minutes(360)), { synced: 1, failed: 0 });
   assert.equal(rows("SELECT id FROM sync_runs").length, 2);
-  setSyncInterval(db, "fixture", 15);
+  setSyncInterval(db, 1, "fixture", 15);
   assert.deepEqual(await sync(db, [fixture], minutes(374)), { synced: 0, failed: 0 });
   assert.deepEqual(await sync(db, [fixture], minutes(375)), { synced: 1, failed: 0 });
 });
@@ -177,7 +178,7 @@ test("ineligible connections are skipped without a sync run", async (t) => {
   const reauth = connect(db);
   db.prepare("UPDATE connections SET status = 'needs_reauth' WHERE id = ?").run(reauth);
   const offProvider = connect(db, "fixture-b");
-  db.prepare("UPDATE providers SET enabled = 0 WHERE key = 'fixture-b'").run();
+  db.prepare("INSERT INTO user_providers (user_id, provider, enabled, sync_interval_minutes) VALUES (1, 'fixture-b', 0, 360)").run();
   const noAdapter = connect(db, "fixture");
   assert.deepEqual(await sync(db, [], T0), { synced: 0, failed: 0 });
   assert.deepEqual(await sync(db, [fixture, fixtureB], T0), { synced: 1, failed: 0 });

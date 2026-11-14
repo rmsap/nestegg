@@ -19,8 +19,10 @@ function begin(db: DatabaseSync, connectionId: number, adapter: ProviderAdapter,
   db.exec("BEGIN IMMEDIATE");
   try {
     const row = db.prepare(`
-      SELECT c.provider, c.enabled, c.credential_encrypted, c.last_synced_at, p.enabled AS provider_enabled, p.lookback_days
-      FROM connections c JOIN providers p ON p.key = c.provider WHERE c.id = ?
+      SELECT c.user_id, c.provider, c.enabled, c.credential_encrypted, c.last_synced_at,
+        COALESCE(u.enabled, 1) AS provider_enabled, p.lookback_days
+      FROM connections c JOIN providers p ON p.key = c.provider
+      LEFT JOIN user_providers u ON u.user_id = c.user_id AND u.provider = c.provider WHERE c.id = ?
     `).get(connectionId);
     if (!row) throw new SyncError("Unknown connection");
     if (!row.enabled) throw new SyncError("This connection is disabled");
@@ -41,24 +43,24 @@ function begin(db: DatabaseSync, connectionId: number, adapter: ProviderAdapter,
       VALUES (?, ?, ?, ?, ?) RETURNING id
     `).get(connectionId, jobRunId, now.toISOString(), window.start, window.end);
     db.exec("COMMIT");
-    return { syncRunId: Number(run?.id), encrypted: String(row.credential_encrypted), window };
+    return { userId: Number(row.user_id), syncRunId: Number(run?.id), encrypted: String(row.credential_encrypted), window };
   } catch (error) {
     db.exec("ROLLBACK");
     throw error;
   }
 }
 
-function apply(db: DatabaseSync, connectionId: number, syncRunId: number, accounts: ProviderAccount[], window: Window,
+function apply(db: DatabaseSync, userId: number, connectionId: number, syncRunId: number, accounts: ProviderAccount[], window: Window,
   actor: "owner" | "scheduler", now: Date) {
   db.exec("BEGIN IMMEDIATE");
   try {
     if (!Array.isArray(accounts)) throw new SyncError("Invalid provider response");
     const at = now.toISOString();
     const today = day(now);
-    const currency = String(db.prepare("SELECT currency FROM settings WHERE id = 1").get()?.currency);
+    const currency = String(db.prepare("SELECT currency FROM users WHERE id = ?").get(userId)?.currency);
     const upsertAccount = db.prepare(`
-      INSERT INTO accounts (name, kind, class, currency, balance_cents, balance_as_of, connection_id, external_id, institution, last_four)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO accounts (user_id, name, kind, class, currency, balance_cents, balance_as_of, connection_id, external_id, institution, last_four)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(connection_id, external_id) DO UPDATE SET
         name = excluded.name, kind = excluded.kind, currency = excluded.currency,
         institution = excluded.institution, last_four = excluded.last_four,
@@ -88,7 +90,7 @@ function apply(db: DatabaseSync, connectionId: number, syncRunId: number, accoun
         (account.balanceCents !== null && !Number.isSafeInteger(account.balanceCents))) {
         throw new SyncError("Invalid provider account or unsupported currency");
       }
-      const accountId = Number(upsertAccount.get(account.name, account.kind,
+      const accountId = Number(upsertAccount.get(userId, account.name, account.kind,
         account.kind === "credit_card" || account.kind === "loan" ? "liability" : "asset", account.currency,
         account.balanceCents, account.balanceCents === null ? null : at, connectionId, account.externalId,
         account.institution ?? null, account.lastFour ?? null)?.id);
@@ -143,7 +145,7 @@ function apply(db: DatabaseSync, connectionId: number, syncRunId: number, accoun
         transactions_added = ?, transactions_updated = ?, transactions_removed = ? WHERE id = ?
     `).run(at, accounts.length, added, updated, removed, syncRunId);
     recordEvent(db, {
-      severity: "info", type: "sync.completed", actor, connectionId, syncRunId,
+      severity: "info", type: "sync.completed", actor, userId, connectionId, syncRunId,
       message: "Sync completed", detail: { accounts: accounts.length, added, updated, removed },
     });
     db.exec("COMMIT");
@@ -154,7 +156,7 @@ function apply(db: DatabaseSync, connectionId: number, syncRunId: number, accoun
   }
 }
 
-function fail(db: DatabaseSync, connectionId: number, syncRunId: number, error: unknown, secrets: string[],
+function fail(db: DatabaseSync, userId: number, connectionId: number, syncRunId: number, error: unknown, secrets: string[],
   actor: "owner" | "scheduler", now: Date) {
   const known = error instanceof ProviderError || error instanceof SyncError;
   const message = known ? secrets.reduce((text, secret) => secret ? text.split(secret).join("[redacted]") : text, error.message) : "Sync failed";
@@ -166,7 +168,7 @@ function fail(db: DatabaseSync, connectionId: number, syncRunId: number, error: 
     db.prepare("UPDATE connections SET status = ?, last_error = ? WHERE id = ?")
       .run(auth ? "needs_reauth" : "error", message, connectionId);
     recordEvent(db, {
-      severity: "error", type: auth ? "connection.needs_reauth" : "sync.failed", actor, connectionId, syncRunId,
+      severity: "error", type: auth ? "connection.needs_reauth" : "sync.failed", actor, userId, connectionId, syncRunId,
       message: auth ? "Connection needs to be re-authorized" : "Sync failed", detail: { error: message },
     });
     db.exec("COMMIT");
@@ -180,7 +182,7 @@ function fail(db: DatabaseSync, connectionId: number, syncRunId: number, error: 
 export async function syncConnection(db: DatabaseSync, key: Buffer, connectionId: number, adapter: ProviderAdapter, options: Options = {}) {
   const now = options.now ?? new Date();
   const actor = options.trigger === "schedule" ? "scheduler" : "owner";
-  const { syncRunId, encrypted, window } = begin(db, connectionId, adapter, options.jobRunId ?? null, now);
+  const { userId, syncRunId, encrypted, window } = begin(db, connectionId, adapter, options.jobRunId ?? null, now);
   const secrets: string[] = [];
   try {
     let credential: string;
@@ -192,7 +194,7 @@ export async function syncConnection(db: DatabaseSync, key: Buffer, connectionId
     secrets.push(credential);
     let settings: Record<string, string>;
     try {
-      settings = providerSettings(db, key, adapter.key);
+      settings = providerSettings(db, userId, key, adapter.key);
     } catch {
       throw new SyncError("Could not decrypt stored secret");
     }
@@ -202,8 +204,8 @@ export async function syncConnection(db: DatabaseSync, key: Buffer, connectionId
     const ctx: ProviderContext = { settings, request: options.request ?? adapter.transport?.(settings) ?? fetch, now };
     // Complete network work before taking a write lock.
     const accounts = await adapter.fetchAccounts(ctx, credential, window);
-    return apply(db, connectionId, syncRunId, accounts, window, actor, now);
+    return apply(db, userId, connectionId, syncRunId, accounts, window, actor, now);
   } catch (error) {
-    throw fail(db, connectionId, syncRunId, error, secrets, actor, now);
+    throw fail(db, userId, connectionId, syncRunId, error, secrets, actor, now);
   }
 }
