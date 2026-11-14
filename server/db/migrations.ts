@@ -311,6 +311,13 @@ export const migrations = [
         ('demo', 'Demo Bank', 1, 60, 1, 10);
     `,
   },
+  {
+    version: 7,
+    sql: `
+      INSERT INTO providers (key, name, enabled, sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES
+        ('plaid', 'Plaid', 1, 360, 60, 14);
+    `,
+  },
 ];
 
 export function initialize(db: DatabaseSync) {

@@ -72,6 +72,7 @@ function apply(db: DatabaseSync, connectionId: number, syncRunId: number, accoun
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const update = db.prepare("UPDATE transactions SET date = ?, merchant = ?, amount_cents = ?, kind = ?, pending = ?, counterparty = ?, provider_category = ?, removed_at = NULL WHERE id = ?");
+    const rename = db.prepare("UPDATE transactions SET external_id = ?, date = ?, merchant = ?, amount_cents = ?, kind = ?, pending = ?, counterparty = ?, provider_category = ?, removed_at = NULL WHERE id = ?");
     const vanished = db.prepare(`
       SELECT id, external_id FROM transactions
       WHERE account_id = ? AND pending = 1 AND external_id IS NOT NULL AND removed_at IS NULL AND date BETWEEN ? AND ?
@@ -104,6 +105,17 @@ function apply(db: DatabaseSync, connectionId: number, syncRunId: number, accoun
         const pending = Number(entry.pending);
         const counterparty = entry.counterparty ?? null, category = entry.category ?? null;
         const existing = find.get(accountId, entry.externalId);
+        const old = entry.replaces && entry.replaces !== entry.externalId ? find.get(accountId, entry.replaces) : undefined;
+        if (entry.replaces) seen.add(entry.replaces);
+        if (!existing && old) {
+          rename.run(entry.externalId, entry.date, entry.description, entry.amountCents, entry.kind, pending, counterparty, category, old.id);
+          updated++;
+          continue;
+        }
+        if (existing && old && old.pending === 1 && old.removed_at === null) {
+          remove.run(at, old.id);
+          removed++;
+        }
         if (!existing) {
           insert.run(entry.date, entry.description, accountId, entry.amountCents, entry.kind, pending, entry.externalId, syncRunId, counterparty, category);
           added++;

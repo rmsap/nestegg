@@ -9,6 +9,8 @@ export type ProviderTransaction = {
   // The provider's own merchant name and category guess, stored verbatim.
   counterparty?: string;
   category?: string;
+  // The external id of an earlier pending row of the same account that this row supersedes.
+  replaces?: string;
 };
 
 export type ProviderAccount = {

@@ -67,7 +67,7 @@ test("upgrading a version 5 database keeps transactions and adds the new columns
     INSERT INTO transactions (id, date, merchant, account_id, amount_cents, kind, memo) VALUES (1, '2026-11-01', 'Market', 1, -900, 'expense', 'Weekly shop');
   `);
   initialize(db);
-  assert.equal(db.prepare("PRAGMA user_version").get().user_version, 6);
+  assert.equal(db.prepare("PRAGMA user_version").get().user_version, 7);
   assert.deepEqual({ ...db.prepare("SELECT id, merchant, amount_cents, memo, counterparty, provider_category FROM transactions").get() },
     { id: 1, merchant: "Market", amount_cents: -900, memo: "Weekly shop", counterparty: null, provider_category: null });
   assert.deepEqual({ ...db.prepare("SELECT name, enabled, sync_interval_minutes, min_sync_interval_minutes, lookback_days, settings_encrypted FROM providers WHERE key = 'demo'").get() },
@@ -167,7 +167,7 @@ test("an expired connect state is rejected", async (t) => {
   const { db } = setup(t);
   const adapter = fixture();
   const { state } = await beginConnection(db, key, adapter, { now: T0 });
-  await assert.rejects(completeConnection(db, key, adapter, state, {}, { now: new Date(T0.getTime() + 15 * 60_000 + 1) }), EXPIRED);
+  await assert.rejects(completeConnection(db, key, adapter, state, {}, { now: new Date(T0.getTime() + 30 * 60_000 + 1) }), EXPIRED);
 });
 
 test("a connect state issued for another provider is rejected", async (t) => {

@@ -72,6 +72,7 @@ export function checkAdapter(test, assert, { adapter, settings, request, payload
         assert.ok(Number.isSafeInteger(entry.amountCents));
         assert.ok(TXN_KINDS.includes(entry.kind));
         assert.equal(typeof entry.pending, "boolean");
+        if (entry.replaces !== undefined) assert.ok(typeof entry.replaces === "string" && entry.replaces.length > 0 && entry.replaces !== entry.externalId);
       }
     }
   });

@@ -7,7 +7,7 @@ import { decrypt, encrypt, sign, verify } from "./secrets.ts";
 
 type ConnectOptions = { connectionId?: number; now?: Date; request?: typeof fetch };
 
-const STATE_TTL = 15 * 60_000;
+const STATE_TTL = 30 * 60_000;
 const EXPIRED = "This link attempt has expired. Start again.";
 
 function inTransaction<T>(db: DatabaseSync, work: () => T): T {

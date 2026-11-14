@@ -8,13 +8,15 @@ function connect(db) {
   return Number(db.prepare("INSERT INTO connections (provider, label) VALUES ('fixture', 'Fixture') RETURNING id").get().id);
 }
 
-test("a fresh database reaches version 6 with seeded settings and jobs", (t) => {
+test("a fresh database reaches version 7 with seeded settings and jobs", (t) => {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
   initialize(db);
-  assert.equal(db.prepare("PRAGMA user_version").get().user_version, 6);
+  assert.equal(db.prepare("PRAGMA user_version").get().user_version, 7);
   assert.deepEqual(db.prepare("SELECT id, currency FROM settings").all().map((row) => ({ ...row })), [{ id: 1, currency: "USD" }]);
-  assert.deepEqual(db.prepare("SELECT key FROM providers ORDER BY key").all().map((row) => row.key), ["demo", "simplefin"]);
+  assert.deepEqual(db.prepare("SELECT key FROM providers ORDER BY key").all().map((row) => row.key), ["demo", "plaid", "simplefin"]);
+  assert.deepEqual({ ...db.prepare("SELECT name, enabled, sync_interval_minutes, min_sync_interval_minutes, lookback_days FROM providers WHERE key = 'plaid'").get() },
+    { name: "Plaid", enabled: 1, sync_interval_minutes: 360, min_sync_interval_minutes: 60, lookback_days: 14 });
   assert.equal(db.prepare("SELECT schedule FROM jobs WHERE key = 'sync-connections'").get().schedule, "*/5 * * * *");
   assert.equal(db.prepare("PRAGMA foreign_keys").get().foreign_keys, 1);
 });
@@ -77,7 +79,7 @@ test("initialize on an up-to-date database changes nothing", (t) => {
   initialize(db);
   assert.deepEqual(schema(), before);
   assert.equal(db.prepare("SELECT currency FROM settings").get().currency, "EUR");
-  assert.equal(db.prepare("PRAGMA user_version").get().user_version, 6);
+  assert.equal(db.prepare("PRAGMA user_version").get().user_version, 7);
   assert.equal(db.prepare("PRAGMA foreign_keys").get().foreign_keys, 1);
 });
 
