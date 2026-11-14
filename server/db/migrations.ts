@@ -130,8 +130,7 @@ export const migrations = [
         CHECK (sync_interval_minutes >= min_sync_interval_minutes AND min_sync_interval_minutes > 0 AND lookback_days > 0)
       ) STRICT;
       INSERT INTO providers (key, name, enabled, sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES
-        ('simplefin', 'SimpleFIN Bridge', 1, 720, 60, 30),
-        ('teller', 'Teller', 1, 360, 15, 10);
+        ('simplefin', 'SimpleFIN Bridge', 1, 720, 60, 30);
 
       CREATE TABLE connections (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -234,8 +233,7 @@ export const migrations = [
       INSERT INTO connections (provider, label, enabled, status)
         SELECT key, label, 0, 'needs_reauth' FROM (
           SELECT DISTINCT provider AS label,
-            CASE WHEN provider LIKE 'teller%' THEN 'teller'
-              ELSE substr(provider, 1, instr(provider || ':', ':') - 1) END AS key
+            substr(provider, 1, instr(provider || ':', ':') - 1) AS key
           FROM accounts WHERE provider IS NOT NULL
         ) WHERE key IN (SELECT key FROM providers) ORDER BY label;
 

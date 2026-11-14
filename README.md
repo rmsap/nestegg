@@ -39,10 +39,10 @@ npm.cmd run build
 - `server/budget/` and `server/transactions/` contain SQLite queries and writes for each feature. The form actions parse input and delegate to these modules.
 - `server/db/` handles the SQLite connection and numbered migrations. `server/accounts/` reads persisted accounts. `scripts/seed-demo.mjs` loads sample rows separately, and `server/demo.ts` holds the sample goals.
 
-## Teller and deployment
+## Deployment
 
 - Each project partner runs one independent instance on their own tailnet, with a separate database, owner sign-in, bank connections, secrets, and backups.
-- The manual sandbox importer implements the documented Teller API. Sandbox availability is unverified following reports that Teller withdrew its API in July 2026. Enrollment tokens are stored encrypted. Before connecting a real bank, add owner authentication and certificate configuration for the selected provider.
+- Before connecting a real bank, add owner authentication and certificate configuration for the selected provider.
 - Ubuntu Server on a mini PC is the preferred first deployment target. Check the host architecture and build the matching image. Use `linux/amd64` for an x86-64 mini PC and `linux/arm64` for a 64-bit ARM host. Each host can serve its own HTTPS address through Tailscale Serve.
 
 This prototype uses Node's built-in SQLite driver and USD integer cents. The project plan covers the remaining work, including account sync, history, goal allocations, CSV workflows, authentication, PWA installation, Docker, and Tailscale.
@@ -51,17 +51,9 @@ This prototype uses Node's built-in SQLite driver and USD integer cents. The pro
 
 `server/imports/transaction-provider.ts` defines the normalized accounts and transactions an adapter returns, and `server/imports/providers.ts` registers adapters by provider key. `server/imports/sync.ts` syncs one connection: it fetches a date window with the decrypted credential, then imports the batch atomically. A new provider implements the adapter contract and registers itself. Account identity is scoped to the connection and transaction identity to the imported account. A connection switch leaves both sets of records available under their own identities, so overlapping history needs explicit reconciliation.
 
-Enabled connections sync automatically on each provider's interval while the server is running. Set `NESTEGG_SCHEDULER=0` to turn the scheduler off.
+Enabled connections sync automatically on each provider's interval while the server is running. Set `NESTEGG_SCHEDULER=0` to turn the scheduler off. `npm run sync` syncs every enabled connection once from the command line, or one connection when given its ID.
 
-If you already have a Teller Sandbox enrollment token, place it in the ignored `.env.local` file as `TELLER_SANDBOX_TOKEN`. The importer stores it encrypted on a connection named Teller Sandbox. An Application ID is used for enrollment and cannot run the importer on its own. Run the following from the project directory:
-
-```powershell
-npm.cmd run sync:teller-sandbox
-$env:NESTEGG_DATA_DIR = 'data/teller-sandbox'
-npm.cmd run dev
-```
-
-Choose the reporting month containing the imported transactions. The importer targets its own SQLite file and accepts only sandbox tokens and USD accounts. Posted expenses appear in Uncategorized until assigned. A pending transaction that posts under the same provider ID updates in place. If the provider assigns a different ID on posting, the posted item counts once. The old pending item disappears from the ledger once a later sync no longer returns it.
+Posted expenses appear in Uncategorized until assigned. A pending transaction that posts under the same provider ID updates in place. If the provider assigns a different ID on posting, the posted item counts once. The old pending item disappears from the ledger once a later sync no longer returns it.
 
 Stored credentials are encrypted with a key from `NESTEGG_SECRET_KEY` (base64 of 32 bytes) or, when that is unset, from `data/secret.key`, which is created on first use. Back the key up together with the database. Without it the stored credentials cannot be decrypted.
 

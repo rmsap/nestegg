@@ -5,7 +5,6 @@ import { test } from "node:test";
 import { createConnection, deleteConnection, replaceCredential, setConnectionEnabled, setSyncInterval } from "../server/connections.ts";
 import { initialize } from "../server/db/migrations.ts";
 import { syncConnection } from "../server/imports/sync.ts";
-import { teller } from "../server/imports/teller-sandbox.ts";
 import { ProviderError } from "../server/imports/transaction-provider.ts";
 import { decrypt } from "../server/secrets.ts";
 
@@ -18,10 +17,12 @@ function setup(t, { enable = true } = {}) {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
   initialize(db);
-  const id = createConnection(db, key, { provider: "teller", label: "Fixture", credential: secret });
+  db.exec(`INSERT INTO providers (key, name, sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES
+    ('fixture', 'Fixture', 360, 15, 10), ('fixture-b', 'Fixture B', 360, 15, 10)`);
+  const id = createConnection(db, key, { provider: "fixture", label: "Fixture", credential: secret });
   if (enable) setConnectionEnabled(db, id, true);
   const adapter = {
-    key: "teller", calls: [], accounts: [], error: null,
+    key: "fixture", calls: [], accounts: [], error: null,
     async fetchAccounts(credential, window) {
       adapter.calls.push({ credential, window });
       if (adapter.error) throw adapter.error;
@@ -165,10 +166,10 @@ test("an auth failure needs re-authorization and a later success restores the co
   const { adapter, sync, rows, one } = setup(t);
   adapter.accounts = [account()];
   await sync(T0);
-  adapter.error = new ProviderError("auth", "Teller rejected the credential");
+  adapter.error = new ProviderError("auth", "Provider rejected the credential");
   await assert.rejects(sync(later(1)), { kind: "auth" });
   assert.deepEqual(one("SELECT status, last_synced_at, last_error FROM connections"),
-    { status: "needs_reauth", last_synced_at: T0.toISOString(), last_error: "Teller rejected the credential" });
+    { status: "needs_reauth", last_synced_at: T0.toISOString(), last_error: "Provider rejected the credential" });
   assert.equal(rows("SELECT * FROM events WHERE type = 'connection.needs_reauth' AND severity = 'error'").length, 1);
   assert.equal(rows("SELECT * FROM events WHERE type = 'sync.failed'").length, 0);
   adapter.error = null;
@@ -204,9 +205,9 @@ test("a sync that cannot start is refused without a run", async (t) => {
   };
   await refuse(({ db }) => db.exec("UPDATE connections SET enabled = 0"), /disabled/);
   await refuse(({ db }) => db.exec("UPDATE connections SET credential_encrypted = NULL"), /no credential/);
-  await refuse(({ db }) => db.exec("UPDATE providers SET enabled = 0 WHERE key = 'teller'"), /provider is disabled/);
-  await refuse(({ adapter }) => { adapter.key = "simplefin"; }, /does not match/);
-  await assert.rejects(syncConnection(setup(t).db, key, 99, { key: "teller" }, { now: T0 }), /Unknown connection/);
+  await refuse(({ db }) => db.exec("UPDATE providers SET enabled = 0 WHERE key = 'fixture'"), /provider is disabled/);
+  await refuse(({ adapter }) => { adapter.key = "fixture-b"; }, /does not match/);
+  await assert.rejects(syncConnection(setup(t).db, key, 99, { key: "fixture" }, { now: T0 }), /Unknown connection/);
 });
 
 test("a recent running sync blocks a new one and a stale one is marked interrupted", async (t) => {
@@ -259,10 +260,10 @@ test("connection management validates input and records events", (t) => {
   assert.equal(one("SELECT enabled, status FROM connections").enabled, 0);
   assert.equal(one("SELECT status FROM connections").status, "active");
   assert.throws(() => createConnection(db, key, { provider: "nope", label: "x", credential: "c" }), /Unknown provider/);
-  assert.throws(() => createConnection(db, key, { provider: "teller", label: "  ", credential: "c" }), /Label/);
-  assert.throws(() => createConnection(db, key, { provider: "teller", label: "x".repeat(81), credential: "c" }), /Label/);
-  db.exec("UPDATE providers SET enabled = 0 WHERE key = 'simplefin'");
-  assert.throws(() => createConnection(db, key, { provider: "simplefin", label: "x", credential: "c" }), /disabled/);
+  assert.throws(() => createConnection(db, key, { provider: "fixture", label: "  ", credential: "c" }), /Label/);
+  assert.throws(() => createConnection(db, key, { provider: "fixture", label: "x".repeat(81), credential: "c" }), /Label/);
+  db.exec("UPDATE providers SET enabled = 0 WHERE key = 'fixture-b'");
+  assert.throws(() => createConnection(db, key, { provider: "fixture-b", label: "x", credential: "c" }), /disabled/);
 
   db.exec("UPDATE connections SET credential_encrypted = NULL");
   assert.throws(() => setConnectionEnabled(db, id, true), /credential/);
@@ -272,11 +273,11 @@ test("connection management validates input and records events", (t) => {
   setConnectionEnabled(db, id, true);
   setConnectionEnabled(db, id, false);
 
-  assert.throws(() => setSyncInterval(db, "teller", 14), /15 to 10080/);
-  assert.throws(() => setSyncInterval(db, "teller", 20000), /10080/);
-  assert.throws(() => setSyncInterval(db, "teller", 30.5), /whole number/);
-  setSyncInterval(db, "teller", 30);
-  assert.equal(one("SELECT sync_interval_minutes AS minutes FROM providers WHERE key = 'teller'").minutes, 30);
+  assert.throws(() => setSyncInterval(db, "fixture", 14), /15 to 10080/);
+  assert.throws(() => setSyncInterval(db, "fixture", 20000), /10080/);
+  assert.throws(() => setSyncInterval(db, "fixture", 30.5), /whole number/);
+  setSyncInterval(db, "fixture", 30);
+  assert.equal(one("SELECT sync_interval_minutes AS minutes FROM providers WHERE key = 'fixture'").minutes, 30);
 
   db.prepare("INSERT INTO accounts (id, name, kind, class, connection_id, external_id) VALUES (1, 'Checking', 'bank', 'asset', ?, 'a')").run(id);
   deleteConnection(db, id);
@@ -297,60 +298,4 @@ test("a scheduled sync is attributed to the scheduler and stores its job run", a
   await sync(T0, { trigger: "schedule", jobRunId: 5 });
   assert.equal(one("SELECT job_run_id FROM sync_runs").job_run_id, 5);
   assert.equal(one("SELECT actor FROM events WHERE type = 'sync.completed'").actor, "scheduler");
-});
-
-test("Teller adapter normalizes expenses, refunds and card payments and sends the date window", async () => {
-  const account = {
-    id: "acc_1", name: "Checking", type: "depository", currency: "USD",
-    links: { transactions: true, balances: true },
-  };
-  const purchase = {
-    account_id: account.id, id: "txn_1", date: "2026-11-08", amount: "12.09",
-    description: "Market", type: "card_payment", status: "posted",
-  };
-  const urls = [];
-  const request = async (url) => {
-    urls.push(new URL(url));
-    const { pathname } = urls.at(-1);
-    if (pathname === "/accounts") return Response.json([account]);
-    if (pathname.endsWith("/balances")) {
-      return Response.json({ account_id: account.id, ledger: null, available: "50.25" });
-    }
-    assert.equal(pathname, "/accounts/acc_1/transactions");
-    return Response.json([
-      purchase,
-      { ...purchase, id: "txn_2", type: "card_purchase", status: "pending" },
-      { ...purchase, id: "txn_3", type: "refund", amount: "-12.09" },
-    ]);
-  };
-  const window = { start: "2026-10-01", end: "2026-11-10" };
-  const [normalized] = await teller.fetchAccounts("test_token_fixture", window, request);
-  assert.equal(teller.key, "teller");
-  assert.equal(normalized.balanceCents, 5025);
-  assert.deepEqual(normalized.transactions.map(({ kind, amountCents, pending }) => [kind, amountCents, pending]), [
-    ["transfer", -1209, false],
-    ["expense", -1209, true],
-    ["expense", 1209, false],
-  ]);
-  const list = urls.find((url) => url.pathname.endsWith("/transactions"));
-  assert.equal(list.searchParams.get("start_date"), "2026-10-01");
-  assert.equal(list.searchParams.get("end_date"), "2026-11-10");
-});
-
-test("Teller adapter maps failures to provider error kinds", async () => {
-  const window = { start: "2026-10-01", end: "2026-11-10" };
-  const fails = (request, kind) => assert.rejects(teller.fetchAccounts("test_token_fixture", window, request),
-    (error) => error instanceof ProviderError && error.kind === kind && !error.message.includes("test_token_fixture"));
-  const status = (code, body = {}) => async () => Response.json(body, { status: code });
-  await fails(status(401), "auth");
-  await fails(status(403), "auth");
-  await fails(status(404, { error: { code: "enrollment.disconnected.user_action.mfa_required" } }), "auth");
-  await fails(status(404, { error: { code: "resource.not_found" } }), "invalid");
-  await fails(status(429), "rate_limit");
-  await fails(status(500), "unavailable");
-  await fails(status(503), "unavailable");
-  await fails(async () => { throw new TypeError("fetch failed test_token_fixture"); }, "unavailable");
-  await fails(async () => new Response("<html>", { status: 200 }), "invalid");
-  await fails(async () => Response.json({ not: "a list" }), "invalid");
-  await assert.rejects(teller.fetchAccounts("live_token", window, status(200)), { kind: "auth" });
 });

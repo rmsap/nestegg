@@ -18,6 +18,8 @@ function setup(t) {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
   initialize(db);
+  db.exec(`INSERT INTO providers (key, name, sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES
+    ('fixture', 'Fixture', 360, 15, 10), ('fixture-b', 'Fixture B', 360, 15, 10)`);
   const rows = (sql, ...args) => db.prepare(sql).all(...args).map((row) => ({ ...row }));
   const one = (sql, ...args) => ({ ...db.prepare(sql).get(...args) });
   return { db, rows, one };
@@ -35,7 +37,7 @@ function adapterFor(provider) {
   return adapter;
 }
 
-function connect(db, provider = "teller", enable = true) {
+function connect(db, provider = "fixture", enable = true) {
   const id = createConnection(db, key, { provider, label: provider + id_(), credential: "tok_" + provider });
   if (enable) setConnectionEnabled(db, id, true);
   return id;
@@ -145,51 +147,51 @@ test("setJobSchedule rejects an invalid expression", (t) => {
 
 test("a connection is due when never synced and again after the provider interval", async (t) => {
   const { db, rows } = setup(t);
-  const teller = adapterFor("teller");
+  const fixture = adapterFor("fixture");
   connect(db);
-  assert.deepEqual(await sync(db, [teller], T0), { synced: 1, failed: 0 });
-  assert.deepEqual(await sync(db, [teller], minutes(359)), { synced: 0, failed: 0 });
-  assert.deepEqual(await sync(db, [teller], minutes(360)), { synced: 1, failed: 0 });
+  assert.deepEqual(await sync(db, [fixture], T0), { synced: 1, failed: 0 });
+  assert.deepEqual(await sync(db, [fixture], minutes(359)), { synced: 0, failed: 0 });
+  assert.deepEqual(await sync(db, [fixture], minutes(360)), { synced: 1, failed: 0 });
   assert.equal(rows("SELECT id FROM sync_runs").length, 2);
-  setSyncInterval(db, "teller", 15);
-  assert.deepEqual(await sync(db, [teller], minutes(374)), { synced: 0, failed: 0 });
-  assert.deepEqual(await sync(db, [teller], minutes(375)), { synced: 1, failed: 0 });
+  setSyncInterval(db, "fixture", 15);
+  assert.deepEqual(await sync(db, [fixture], minutes(374)), { synced: 0, failed: 0 });
+  assert.deepEqual(await sync(db, [fixture], minutes(375)), { synced: 1, failed: 0 });
 });
 
 test("a failed attempt is not retried before the interval elapses", async (t) => {
   const { db, rows } = setup(t);
-  const teller = adapterFor("teller");
-  teller.error = new Error("down");
+  const fixture = adapterFor("fixture");
+  fixture.error = new Error("down");
   connect(db);
-  assert.deepEqual(await sync(db, [teller], T0), { synced: 0, failed: 1 });
-  assert.deepEqual(await sync(db, [teller], minutes(30)), { synced: 0, failed: 0 });
-  assert.equal(teller.calls, 1);
-  assert.deepEqual(await sync(db, [teller], minutes(360)), { synced: 0, failed: 1 });
+  assert.deepEqual(await sync(db, [fixture], T0), { synced: 0, failed: 1 });
+  assert.deepEqual(await sync(db, [fixture], minutes(30)), { synced: 0, failed: 0 });
+  assert.equal(fixture.calls, 1);
+  assert.deepEqual(await sync(db, [fixture], minutes(360)), { synced: 0, failed: 1 });
   assert.equal(rows("SELECT id FROM sync_runs").length, 2);
 });
 
 test("ineligible connections are skipped without a sync run", async (t) => {
   const { db, rows } = setup(t);
-  const teller = adapterFor("teller"), simplefin = adapterFor("simplefin");
-  const disabled = connect(db, "teller", false);
+  const fixture = adapterFor("fixture"), fixtureB = adapterFor("fixture-b");
+  const disabled = connect(db, "fixture", false);
   const reauth = connect(db);
   db.prepare("UPDATE connections SET status = 'needs_reauth' WHERE id = ?").run(reauth);
-  const offProvider = connect(db, "simplefin");
-  db.prepare("UPDATE providers SET enabled = 0 WHERE key = 'simplefin'").run();
-  const noAdapter = connect(db, "teller");
+  const offProvider = connect(db, "fixture-b");
+  db.prepare("UPDATE providers SET enabled = 0 WHERE key = 'fixture-b'").run();
+  const noAdapter = connect(db, "fixture");
   assert.deepEqual(await sync(db, [], T0), { synced: 0, failed: 0 });
-  assert.deepEqual(await sync(db, [teller, simplefin], T0), { synced: 1, failed: 0 });
+  assert.deepEqual(await sync(db, [fixture, fixtureB], T0), { synced: 1, failed: 0 });
   assert.deepEqual(rows("SELECT connection_id FROM sync_runs"), [{ connection_id: noAdapter }]);
   assert.ok(![disabled, reauth, offProvider].includes(noAdapter));
 });
 
 test("one failing connection does not stop the next", async (t) => {
   const { db, rows } = setup(t);
-  const teller = adapterFor("teller"), simplefin = adapterFor("simplefin");
-  connect(db, "teller");
-  connect(db, "simplefin");
-  teller.error = new Error("down");
-  assert.deepEqual(await sync(db, [teller, simplefin], T0), { synced: 1, failed: 1 });
+  const fixture = adapterFor("fixture"), fixtureB = adapterFor("fixture-b");
+  connect(db, "fixture");
+  connect(db, "fixture-b");
+  fixture.error = new Error("down");
+  assert.deepEqual(await sync(db, [fixture, fixtureB], T0), { synced: 1, failed: 1 });
   const jobRunId = Number(db.prepare("SELECT id FROM job_runs").get().id);
   db.exec("PRAGMA foreign_keys = OFF");
   assert.deepEqual(rows("SELECT status, job_run_id FROM sync_runs ORDER BY id"), [
@@ -199,9 +201,9 @@ test("one failing connection does not stop the next", async (t) => {
 
 test("the scheduled sync job records linked runs and events", async (t) => {
   const { db, one } = setup(t);
-  const teller = adapterFor("teller");
+  const fixture = adapterFor("fixture");
   connect(db);
-  const adapters = new Map([["teller", teller]]);
+  const adapters = new Map([["fixture", fixture]]);
   const handlers = { "sync-connections": (context) => syncDueConnections(db, key, adapters, context).then(() => undefined) };
   assert.deepEqual(await runDueJobs(db, handlers, T0), ["sync-connections"]);
   const run = one("SELECT id, status FROM job_runs");

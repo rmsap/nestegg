@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
     "seed:demo": "node --experimental-strip-types scripts/seed-demo.mjs",
-    "sync:teller-sandbox": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/sync-teller-sandbox.mjs",
+    "sync": "node --experimental-strip-types scripts/sync.mjs",
     "test": "node --experimental-strip-types --test scripts/imports.test.mjs scripts/sync.test.mjs scripts/secrets.test.mjs scripts/schedule.test.mjs",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",

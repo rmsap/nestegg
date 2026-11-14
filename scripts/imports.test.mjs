@@ -4,7 +4,8 @@ import { test } from "node:test";
 import { initialize, migrations } from "../server/db/migrations.ts";
 
 function connect(db) {
-  return Number(db.prepare("INSERT INTO connections (provider, label) VALUES ('teller', 'Fixture') RETURNING id").get().id);
+  db.exec("INSERT INTO providers (key, name, sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES ('fixture', 'Fixture', 360, 15, 10)");
+  return Number(db.prepare("INSERT INTO connections (provider, label) VALUES ('fixture', 'Fixture') RETURNING id").get().id);
 }
 
 test("a fresh database reaches version 4 with seeded settings and jobs", (t) => {
@@ -13,7 +14,7 @@ test("a fresh database reaches version 4 with seeded settings and jobs", (t) => 
   initialize(db);
   assert.equal(db.prepare("PRAGMA user_version").get().user_version, 4);
   assert.deepEqual(db.prepare("SELECT id, currency FROM settings").all().map((row) => ({ ...row })), [{ id: 1, currency: "USD" }]);
-  assert.deepEqual(db.prepare("SELECT key FROM providers ORDER BY key").all().map((row) => row.key), ["simplefin", "teller"]);
+  assert.deepEqual(db.prepare("SELECT key FROM providers ORDER BY key").all().map((row) => row.key), ["simplefin"]);
   assert.equal(db.prepare("SELECT schedule FROM jobs WHERE key = 'sync-connections'").get().schedule, "*/5 * * * *");
   assert.equal(db.prepare("PRAGMA foreign_keys").get().foreign_keys, 1);
 });
@@ -26,7 +27,9 @@ test("upgrading a version 3 database preserves ids and links provider accounts",
   db.exec(`
     INSERT INTO accounts (id, name, kind, balance_cents) VALUES (3, 'Manual checking', 'bank', 1000);
     INSERT INTO accounts (id, name, kind, balance_cents, provider, external_id)
-      VALUES (7, 'Sandbox card', 'credit_card', 5000, 'teller:sandbox', 'acc_1');
+      VALUES (7, 'Sandbox card', 'credit_card', 5000, 'legacy:sandbox', 'acc_1');
+    INSERT INTO accounts (id, name, kind, balance_cents, provider, external_id)
+      VALUES (8, 'Savings', 'bank', 8000, 'simplefin:main', 'sf_1');
     INSERT INTO categories (id, name) VALUES (1, 'Groceries');
     INSERT INTO transactions (id, date, merchant, account_id, amount_cents, category_id, kind, reviewed, external_id) VALUES
       (10, '2026-11-01', 'Market', 3, -900, 1, 'expense', 1, NULL),
@@ -35,13 +38,15 @@ test("upgrading a version 3 database preserves ids and links provider accounts",
   `);
   initialize(db);
   const rows = (sql) => db.prepare(sql).all().map((row) => ({ ...row }));
-  assert.deepEqual(rows("SELECT id FROM accounts ORDER BY id").map((row) => row.id), [3, 7]);
+  assert.deepEqual(rows("SELECT id FROM accounts ORDER BY id").map((row) => row.id), [3, 7, 8]);
   assert.deepEqual(rows("SELECT id FROM transactions ORDER BY id").map((row) => row.id), [10, 11, 12]);
   assert.deepEqual(rows("SELECT provider, label, enabled, status, credential_encrypted FROM connections"), [
-    { provider: "teller", label: "teller:sandbox", enabled: 0, status: "needs_reauth", credential_encrypted: null },
+    { provider: "simplefin", label: "simplefin:main", enabled: 0, status: "needs_reauth", credential_encrypted: null },
   ]);
   const card = db.prepare("SELECT class, external_id, balance_cents, connection_id FROM accounts WHERE id = 7").get();
-  assert.deepEqual({ ...card }, { class: "liability", external_id: "acc_1", balance_cents: 5000, connection_id: 1 });
+  assert.deepEqual({ ...card }, { class: "liability", external_id: "acc_1", balance_cents: 5000, connection_id: null });
+  const savings = db.prepare("SELECT class, external_id, balance_cents, connection_id FROM accounts WHERE id = 8").get();
+  assert.deepEqual({ ...savings }, { class: "asset", external_id: "sf_1", balance_cents: 8000, connection_id: 1 });
   const manual = db.prepare("SELECT class, connection_id FROM accounts WHERE id = 3").get();
   assert.deepEqual({ ...manual }, { class: "asset", connection_id: null });
   assert.deepEqual(rows("SELECT id, category_id, reviewed, external_id FROM transactions WHERE id IN (10, 12) ORDER BY id"), [

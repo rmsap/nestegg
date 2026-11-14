@@ -1,7 +1,6 @@
 import type { ProviderAdapter } from "./transaction-provider.ts";
-import { teller } from "./teller-sandbox.ts";
 
-export const adapters = new Map<string, ProviderAdapter>([[teller.key, teller]]);
+export const adapters = new Map<string, ProviderAdapter>();
 
 export function adapter(key: string) {
   const found = adapters.get(key);
