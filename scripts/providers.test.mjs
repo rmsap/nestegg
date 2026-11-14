@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { beginConnection, completeConnection, createConnection, disconnectAndDelete, setConnectionEnabled } from "../server/connections.ts";
+import { beginConnection, completeConnection, createConnection, disconnectAndDelete, setConnectionEnabled } from "../server/connections/mutations.ts";
 import { initialize, migrations } from "../server/db/migrations.ts";
 import { demo } from "../server/imports/demo.ts";
 import { describeProviderSettings, providerSettings, setProviderEnabled, setProviderSettings } from "../server/imports/provider-settings.ts";

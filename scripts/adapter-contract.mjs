@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import { createConnection, setConnectionEnabled } from "../server/connections.ts";
+import { createConnection, setConnectionEnabled } from "../server/connections/mutations.ts";
 import { initialize } from "../server/db/migrations.ts";
 import { setProviderSettings } from "../server/imports/provider-settings.ts";
 import { syncConnection } from "../server/imports/sync.ts";

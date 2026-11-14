@@ -1,7 +1,7 @@
 import "server-only";
-import { database, dataDirectory } from "../db/connection";
+import { database } from "../db/connection";
 import { adapters } from "../imports/providers";
-import { loadSecretKey } from "../secrets";
+import { secretKey } from "../secret-key";
 import { runDueJobs } from "./jobs.ts";
 import type { JobHandler } from "./jobs.ts";
 import { syncDueConnections } from "./sync-job.ts";
@@ -13,7 +13,7 @@ export function startScheduler() {
   const state = globalThis as { [started]?: boolean };
   if (state[started] || process.env.NESTEGG_SCHEDULER === "0") return;
   state[started] = true;
-  const key = loadSecretKey(dataDirectory);
+  const key = secretKey();
   const handlers: Record<string, JobHandler> = {
     "sync-connections": (context) => syncDueConnections(context.db, key, adapters, context).then(() => undefined),
   };

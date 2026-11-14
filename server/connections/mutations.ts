@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { recordEvent } from "./events.ts";
-import { providerSettings } from "./imports/provider-settings.ts";
-import type { ConnectStart, ProviderAdapter, ProviderContext } from "./imports/transaction-provider.ts";
-import { decrypt, encrypt, sign, verify } from "./secrets.ts";
+import { recordEvent } from "../events.ts";
+import { providerSettings } from "../imports/provider-settings.ts";
+import type { ConnectStart, ProviderAdapter, ProviderContext } from "../imports/transaction-provider.ts";
+import { decrypt, encrypt, sign, verify } from "../secrets.ts";
 
 type ConnectOptions = { connectionId?: number; now?: Date; request?: typeof fetch };
 

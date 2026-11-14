@@ -8,6 +8,7 @@ const pages = [
   { href: "/transactions", label: "Transactions" },
   { href: "/budget", label: "Budget" },
   { href: "/accounts", label: "Accounts" },
+  { href: "/connections", label: "Connections" },
   { href: "/goals", label: "Goals" },
 ];
 

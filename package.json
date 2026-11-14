@@ -9,7 +9,7 @@
     "dev": "next dev --hostname 127.0.0.1",
     "seed:demo": "node --experimental-strip-types scripts/seed-demo.mjs",
     "sync": "node --experimental-strip-types scripts/sync.mjs",
-    "test": "node --experimental-strip-types --test scripts/imports.test.mjs scripts/sync.test.mjs scripts/secrets.test.mjs scripts/schedule.test.mjs scripts/providers.test.mjs scripts/plaid.test.mjs",
+    "test": "node --experimental-strip-types --test scripts/imports.test.mjs scripts/sync.test.mjs scripts/secrets.test.mjs scripts/schedule.test.mjs scripts/providers.test.mjs scripts/plaid.test.mjs scripts/connections.test.mjs",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit"

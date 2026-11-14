@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { createConnection, setConnectionEnabled, setSyncInterval } from "../server/connections.ts";
+import { createConnection, setConnectionEnabled, setSyncInterval } from "../server/connections/mutations.ts";
 import { initialize } from "../server/db/migrations.ts";
 import { nextRun } from "../server/schedule/cron.ts";
 import { runDueJobs, runJob, setJobSchedule } from "../server/schedule/jobs.ts";
