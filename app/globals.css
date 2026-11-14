@@ -2,18 +2,38 @@
 @source "./";
 @source "../components";
 
+:root {
+  --palette-ink: color-mix(in srgb, var(--theme-primary) 24%, #243029);
+  --palette-muted: color-mix(in srgb, var(--theme-primary) 16%, #4b5951);
+  --palette-primary-text: color-mix(in srgb, var(--theme-primary) 32%, #14251e);
+  --palette-accent: color-mix(in srgb, var(--theme-primary) 15%, white);
+  --palette-focus: color-mix(in srgb, var(--theme-primary) 49%, black);
+}
+
+@theme inline {
+  --color-ink: var(--palette-ink);
+  --color-muted: var(--palette-muted);
+  --color-primary: var(--theme-primary);
+  --color-on-primary: var(--theme-on-primary);
+  --color-primary-text: var(--palette-primary-text);
+  --color-accent: var(--palette-accent);
+  --color-line: color-mix(in srgb, var(--theme-primary) 14%, white);
+  --color-control: color-mix(in srgb, var(--theme-primary) 25%, white);
+  --color-canvas: color-mix(in srgb, var(--theme-primary) 3%, white);
+  --color-sidebar: color-mix(in srgb, var(--theme-primary) 8%, white);
+  --color-inset: color-mix(in srgb, var(--theme-primary) 5%, white);
+  --color-progress: color-mix(in srgb, var(--theme-primary) 65%, #293c32);
+  --color-focus: var(--palette-focus);
+}
+
 @theme {
-  --color-ink: #243b31;
-  --color-muted: #52675b;
   --color-surface: #fff;
-  --color-line: #dce6da;
-  --color-green: #245e49;
-  --color-accent: #dce9db;
-  --color-canvas: #f7f8f4;
-  --color-sidebar: #edf2ea;
-  --color-inset: #f3f7f1;
   --color-danger: #923f2e;
-  --color-focus: #b56836;
+  --color-on-danger: #fff;
+  --color-warning: #ffe49a;
+  --color-warning-text: #694a00;
+  --color-over-budget: #b97454;
+  --shadow-popover: 0 4px 12px #243b3120;
 }
 
 @custom-variant compact (@media (max-width: 680px));
@@ -24,7 +44,7 @@
   }
 
   a {
-    @apply text-green;
+    @apply text-primary-text;
   }
 
   h1 {
@@ -48,6 +68,6 @@
   }
 
   input:not([type="hidden"]), select {
-    @apply min-w-0 max-w-full rounded-md border border-[#c9d8cd] bg-surface p-2 text-ink;
+    @apply min-w-0 max-w-full rounded-md border border-control bg-surface p-2 text-ink;
   }
 }

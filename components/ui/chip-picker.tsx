@@ -47,7 +47,7 @@ export function ChipPicker({ label, accessibleLabel, optionsLabel, value, option
       {label}
     </Chip>
     {open && <ul id={optionsId}
-      className="absolute start-0 top-[calc(100%+4px)] z-2 max-h-60 w-max min-w-full max-w-[min(220px,calc(100vw-68px))] list-none overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-[0_4px_12px_#243b3120]"
+      className="absolute start-0 top-[calc(100%+4px)] z-2 max-h-60 w-max min-w-full max-w-[min(220px,calc(100vw-68px))] list-none overflow-y-auto rounded-lg border border-line bg-surface p-1 shadow-popover"
       aria-label={optionsLabel}>
       {options.map((option) => <li key={option.value}>
         <button type="button"
