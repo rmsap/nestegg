@@ -5,9 +5,7 @@ export function parseMonth(value: unknown) {
 }
 
 export function reportingMonth(value: unknown) {
-  const now = new Date();
-  const current = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  return parseMonth(value) ?? (process.env.NESTEGG_DEMO === "1" ? demoMonth : current);
+  return parseMonth(value) ?? demoMonth;
 }
 
 export function monthLabel(month: string) {

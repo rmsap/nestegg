@@ -110,6 +110,10 @@ export const migrations = [
   },
   {
     version: 4,
+    sql: "ALTER TABLE transactions ADD COLUMN memo TEXT",
+  },
+  {
+    version: 5,
     sql: `
       CREATE TABLE settings (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -237,7 +241,7 @@ export const migrations = [
           FROM accounts WHERE provider IS NOT NULL
         ) WHERE key IN (SELECT key FROM providers) ORDER BY label;
 
-      CREATE TABLE accounts_v4 (
+      CREATE TABLE accounts_v5 (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         kind TEXT NOT NULL CHECK (kind IN ('bank', 'credit_card', 'investment', 'loan', 'other')),
@@ -253,14 +257,14 @@ export const migrations = [
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
         UNIQUE (connection_id, external_id)
       ) STRICT;
-      INSERT INTO accounts_v4 (id, name, kind, class, balance_cents, connection_id, external_id)
+      INSERT INTO accounts_v5 (id, name, kind, class, balance_cents, connection_id, external_id)
         SELECT a.id, a.name, a.kind, CASE WHEN a.kind = 'credit_card' THEN 'liability' ELSE 'asset' END,
           a.balance_cents, (SELECT c.id FROM connections c WHERE c.label = a.provider), a.external_id
         FROM accounts a;
       UPDATE sqlite_sequence SET seq = max(seq, COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'accounts'), 0))
-        WHERE name = 'accounts_v4';
+        WHERE name = 'accounts_v5';
       DROP TABLE accounts;
-      ALTER TABLE accounts_v4 RENAME TO accounts;
+      ALTER TABLE accounts_v5 RENAME TO accounts;
 
       CREATE TABLE balance_snapshots (
         account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
@@ -269,7 +273,7 @@ export const migrations = [
         PRIMARY KEY (account_id, date)
       ) STRICT;
 
-      CREATE TABLE transactions_v4 (
+      CREATE TABLE transactions_v5 (
         id INTEGER PRIMARY KEY,
         date TEXT NOT NULL,
         merchant TEXT NOT NULL,
@@ -280,17 +284,18 @@ export const migrations = [
         pending INTEGER NOT NULL DEFAULT 0 CHECK (pending IN (0,1)),
         reviewed INTEGER NOT NULL DEFAULT 0 CHECK (reviewed IN (0,1)),
         external_id TEXT,
+        memo TEXT,
         removed_at TEXT,
         first_seen_sync_run_id INTEGER REFERENCES sync_runs(id) ON DELETE SET NULL,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
         UNIQUE (account_id, external_id)
       ) STRICT;
-      INSERT INTO transactions_v4
-        (id, date, merchant, account_id, amount_cents, category_id, kind, pending, reviewed, external_id)
-        SELECT id, date, merchant, account_id, amount_cents, category_id, kind, pending, reviewed, external_id
+      INSERT INTO transactions_v5
+        (id, date, merchant, account_id, amount_cents, category_id, kind, pending, reviewed, external_id, memo)
+        SELECT id, date, merchant, account_id, amount_cents, category_id, kind, pending, reviewed, external_id, memo
         FROM transactions;
       DROP TABLE transactions;
-      ALTER TABLE transactions_v4 RENAME TO transactions;
+      ALTER TABLE transactions_v5 RENAME TO transactions;
       CREATE INDEX transaction_category_date ON transactions(category_id, date);
       CREATE INDEX transaction_date ON transactions(date);
       CREATE INDEX transaction_account_date ON transactions(account_id, date);

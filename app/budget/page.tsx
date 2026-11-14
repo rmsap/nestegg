@@ -1,5 +1,6 @@
 import { Metric } from "../../components/metric";
 import { PageHeading } from "../../components/page-heading";
+import { Panel } from "../../components/ui/panel";
 import { reportingMonth } from "../../lib/reporting";
 import Link from "next/link";
 import { money } from "../../lib/finance";
@@ -26,13 +27,9 @@ export default async function BudgetPage({ searchParams }: {
       <Metric label="Expected income" value={expectedIncome} />
       <Metric label="Planned savings" value={expectedIncome - planned} />
     </div>
-    {uncategorized !== 0 && <section className="panel">
-      <div className="section-heading">
-        <h2>Uncategorized</h2>
-        <strong>{money(uncategorized)}</strong>
-      </div>
+    {uncategorized !== 0 && <Panel heading="Uncategorized" headingAside={<strong>{money(uncategorized)}</strong>}>
       <Link href={`/transactions?month=${month}&category=Uncategorized`}>Review transactions</Link>
-    </section>}
+    </Panel>}
     <CategoryList key={month} list={list} editing={edit === "1"} month={month} />
   </>;
 }

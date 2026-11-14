@@ -1,4 +1,6 @@
-import Link from "next/link";
+import { Button, ButtonLink } from "../../components/ui/button";
+import { Field } from "../../components/ui/field";
+import { Panel } from "../../components/ui/panel";
 import { addCategory, deleteCategory, saveLimits } from "./actions";
 import type { Category } from "../../server/budget/queries";
 import { money } from "../../lib/finance";
@@ -6,14 +8,10 @@ import { money } from "../../lib/finance";
 export function CategoryList({ list, editing, month }: { list: Category[]; editing: boolean; month: string }) {
   const url = "/budget?month=" + month;
   return <>
-    <section className="panel">
-      <div className="section-heading">
-        <h2>Your categories</h2>
-        {editing ? <div className="actions">
-          <Link className="button" href={url}>Cancel</Link>
-          <button className="primary" form="limits">Save changes</button>
-        </div> : <Link className="button" href={url + "&edit=1"}>Edit categories</Link>}
-      </div>
+    <Panel heading="Your categories" headingAside={editing ? <div className="actions">
+      <ButtonLink href={url}>Cancel</ButtonLink>
+      <Button type="submit" variant="primary" form="limits">Save changes</Button>
+    </div> : <ButtonLink href={url + "&edit=1"}>Edit categories</ButtonLink>}>
       {editing && <form id="limits" action={saveLimits}><input type="hidden" name="month" value={month} /></form>}
       {list.length === 0 && <p className="muted">Add a category to start your budget.</p>}
       {list.map((category) => {
@@ -31,13 +29,13 @@ export function CategoryList({ list, editing, month }: { list: Category[]; editi
                   : <form action={deleteCategory}>
                     <input type="hidden" name="month" value={month} />
                     <input type="hidden" name="category" value={category.id} />
-                    {category.activity > 0 && <label>Move transactions to
+                    {category.activity > 0 && <Field label="Move transactions to">
                       <select name="replacement" required defaultValue="">
                         <option value="" disabled>Choose a category</option>
                         {alternatives.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
                       </select>
-                    </label>}
-                    <button className="danger">Delete category</button>
+                    </Field>}
+                    <Button type="submit" variant="danger">Delete category</Button>
                   </form>}
               </div>
             </details>}
@@ -53,15 +51,16 @@ export function CategoryList({ list, editing, month }: { list: Category[]; editi
           <p className="muted">{money(Math.abs(remaining))} {remaining < 0 ? "over budget" : "remaining"}</p>
         </div>;
       })}
-    </section>
-    <section className="panel">
-      <h2>Add a category</h2>
+    </Panel>
+    <Panel heading="Add a category">
       <form className="fields" action={addCategory}>
         <input type="hidden" name="month" value={month} />
-        <label>Category name<input name="name" maxLength={60} required /></label>
-        <label>Monthly limit<input name="limit" type="number" min="0" max="1000000" step="0.01" defaultValue="0" required /></label>
-        <button className="primary">Add category</button>
+        <Field label="Category name"><input name="name" maxLength={60} required /></Field>
+        <Field label="Monthly limit">
+          <input name="limit" type="number" min="0" max="1000000" step="0.01" defaultValue="0" required />
+        </Field>
+        <Button type="submit" variant="primary">Add category</Button>
       </form>
-    </section>
+    </Panel>
   </>;
 }

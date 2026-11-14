@@ -1,20 +1,15 @@
+import { TransactionRow, type CategoryChoice } from "../app/transactions/transaction-row";
 import type { Transaction } from "../server/transactions/queries";
-import { money } from "../lib/finance";
 
-const dateFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-
-export function Activity({ list, renderCategory }: {
+export function Activity({ list, categoryChoices }: {
   list: Transaction[];
-  renderCategory?: (transaction: Transaction) => React.ReactNode;
+  categoryChoices?: CategoryChoice[];
 }) {
-  return <div className="activity">
+  const hasLeadingColumn = Boolean(categoryChoices) || list.some((transaction) => transaction.memo);
+
+  return <div className={hasLeadingColumn ? "activity activity-with-review" : "activity"}>
     {list.length === 0 && <p className="muted">No matching transactions.</p>}
-    {list.map((transaction) => <div className="activity-row" key={transaction.id}>
-      <div><strong>{transaction.merchant}</strong>
-        <p className="muted">{dateFormat.format(new Date(transaction.date))} · {transaction.account}</p></div>
-      <div>{renderCategory ? renderCategory(transaction) : <span>{transaction.category}</span>}
-        <p className="muted">{transaction.pending ? "Pending" : transaction.reviewed ? "Reviewed" : "Needs review"}</p></div>
-      <strong className="amount">{money(transaction.amount_cents)}</strong>
-    </div>)}
+    {list.map((transaction) => <TransactionRow key={transaction.id}
+      transaction={transaction} categoryChoices={categoryChoices} hasLeadingColumn={hasLeadingColumn} />)}
   </div>;
 }
