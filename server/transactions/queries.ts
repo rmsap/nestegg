@@ -16,6 +16,6 @@ export function transactions(month: string) {
     FROM transactions t
     JOIN accounts a ON a.id = t.account_id
     LEFT JOIN categories c ON t.category_id = c.id
-    WHERE t.date BETWEEN ? AND ? ORDER BY t.date DESC, t.id ASC
+    WHERE t.removed_at IS NULL AND t.date BETWEEN ? AND ? ORDER BY t.date DESC, t.id ASC
   `).all(month + "-01", month + "-31") as Transaction[];
 }

@@ -15,11 +15,23 @@ export type ProviderAccount = {
   currency: "USD";
   // Credit card balances are positive when money is owed.
   balanceCents: number | null;
+  institution?: string;
+  lastFour?: string;
   transactions: ProviderTransaction[];
 };
 
-export interface TransactionProvider {
-  // Stable namespace, including environment when provider IDs can overlap.
-  readonly id: string;
-  fetchAccounts(): Promise<ProviderAccount[]>;
+export type ProviderAdapter = {
+  // Equals providers.key.
+  key: string;
+  // The window is inclusive YYYY-MM-DD dates.
+  fetchAccounts(credential: string, window: { start: string; end: string }, request?: typeof fetch): Promise<ProviderAccount[]>;
+};
+
+export class ProviderError extends Error {
+  kind: "auth" | "rate_limit" | "unavailable" | "invalid";
+  constructor(kind: ProviderError["kind"], message: string) {
+    super(message);
+    this.name = "ProviderError";
+    this.kind = kind;
+  }
 }

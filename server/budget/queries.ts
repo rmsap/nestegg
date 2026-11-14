@@ -9,7 +9,7 @@ export function categories(month: string) {
       (SELECT COUNT(*) FROM transactions WHERE category_id = c.id) AS activity
     FROM categories c
     LEFT JOIN budget_limits l ON l.category_id = c.id AND l.month = ?
-    LEFT JOIN transactions t ON t.category_id = c.id AND t.kind = 'expense' AND t.date BETWEEN ? AND ?
+    LEFT JOIN transactions t ON t.category_id = c.id AND t.kind = 'expense' AND t.removed_at IS NULL AND t.date BETWEEN ? AND ?
     GROUP BY c.id ORDER BY c.id
   `).all(month, month + "-01", month + "-31") as Category[];
 }
@@ -23,7 +23,7 @@ export function uncategorizedSpending(month: string) {
   return Number(database().prepare(`
     SELECT COALESCE(SUM(-amount_cents), 0) AS spent
     FROM transactions
-    WHERE kind = 'expense' AND category_id IS NULL AND pending = 0 AND date BETWEEN ? AND ?
+    WHERE kind = 'expense' AND category_id IS NULL AND pending = 0 AND removed_at IS NULL AND date BETWEEN ? AND ?
   `).get(month + "-01", month + "-31")?.spent ?? 0);
 }
 
