@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { Button } from "../../components/ui/button";
 import { Field } from "../../components/ui/field";
 import { Select } from "../../components/ui/select";
-import { colorModes, parseColorMode, themeVariables, type ColorMode } from "../../lib/theme";
+import { colorModes, parseColorMode, parsePrimaryColor, themeVariables, type ColorMode } from "../../lib/theme";
 import { saveAppearance } from "./actions";
 
 const swatches = [
@@ -17,6 +17,7 @@ const swatches = [
 
 export function ThemePicker({ initialColor, initialMode }: { initialColor: string; initialMode: ColorMode }) {
   const [color, setColor] = useState(initialColor);
+  const [hex, setHex] = useState(initialColor.toUpperCase());
   const [mode, setMode] = useState(initialMode);
   const [resets, setResets] = useState(0);
   const [error, submit, pending] = useActionState(saveAppearance, null);
@@ -42,8 +43,20 @@ export function ThemePicker({ initialColor, initialMode }: { initialColor: strin
       <Field label="Primary color">
         <span className="flex items-center gap-3">
           <input type="color" name="primaryColor" className="h-[38px] w-14 cursor-pointer p-1 pointer-coarse:h-11" value={color}
-            disabled={pending} onChange={(event) => setColor(event.currentTarget.value)} />
-          <span className="font-mono text-sm text-muted tabular-nums">{color.toUpperCase()}</span>
+            disabled={pending} onChange={(event) => {
+              setColor(event.currentTarget.value);
+              setHex(event.currentTarget.value.toUpperCase());
+            }} />
+          <input type="text" aria-label="Primary color hex code" className="w-28 font-mono text-sm tabular-nums uppercase"
+            value={hex} maxLength={7} spellCheck={false} autoComplete="off" disabled={pending}
+            aria-invalid={parsePrimaryColor(hex.startsWith("#") ? hex : "#" + hex) === null}
+            onChange={(event) => {
+              const text = event.currentTarget.value.trim();
+              setHex(text);
+              const parsed = parsePrimaryColor(text.startsWith("#") ? text : "#" + text);
+              if (parsed) setColor(parsed);
+            }}
+            onBlur={() => setHex(color.toUpperCase())} />
         </span>
       </Field>
     </div>
@@ -64,6 +77,7 @@ export function ThemePicker({ initialColor, initialMode }: { initialColor: strin
       </Button>
       <Button type="button" disabled={pending || !hasChanges} onClick={() => {
         setColor(initialColor);
+        setHex(initialColor.toUpperCase());
         setMode(initialMode);
         setResets(resets + 1);
       }}>Reset</Button>
