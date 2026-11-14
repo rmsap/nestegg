@@ -3,13 +3,14 @@
 import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 
-export function Select({ name, options, defaultValue, placeholder = "Choose an option", required, disabled, "aria-label": ariaLabel }: {
+export function Select({ name, options, defaultValue, placeholder = "Choose an option", required, disabled, onValueChange, "aria-label": ariaLabel }: {
   name: string;
   options: { value: string; label: string }[];
   defaultValue?: string;
   placeholder?: string;
   required?: boolean;
   disabled?: boolean;
+  onValueChange?: (value: string) => void;
   "aria-label"?: string;
 }) {
   const [value, setValue] = useState(defaultValue ?? "");
@@ -50,6 +51,7 @@ export function Select({ name, options, defaultValue, placeholder = "Choose an o
 
   function choose(next: string) {
     setValue(next);
+    if (next !== value) onValueChange?.(next);
     close();
   }
 

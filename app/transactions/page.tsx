@@ -23,7 +23,7 @@ export default async function TransactionsPage({ searchParams }: {
   const user = await currentUser();
   const db = database();
   const list = categories(db, user.id, month);
-  const categoryChoices = list.map(({ id, name }) => ({ id, name }));
+  const categoryChoices = list.map(({ id, name, color }) => ({ id, name, color }));
   const filtered = transactions(db, user.id, month).filter((item) =>
     (!selected || item.category === selected) &&
     `${item.merchant} ${item.account}`.toLowerCase().includes(search)

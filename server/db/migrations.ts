@@ -133,6 +133,17 @@ export const migrations = [
   },
   {
     version: 6,
+    sql: `ALTER TABLE users ADD COLUMN color_mode TEXT NOT NULL DEFAULT 'system'
+      CHECK (color_mode IN ('system', 'light', 'dark'))`,
+  },
+  {
+    version: 7,
+    sql: `ALTER TABLE categories ADD COLUMN color TEXT NOT NULL DEFAULT '#245e49'
+      CHECK (length(color) = 7 AND substr(color, 1, 1) = '#'
+        AND substr(color, 2) NOT GLOB '*[^0-9a-f]*')`,
+  },
+  {
+    version: 8,
     sql: `
       CREATE TABLE settings (
         id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -321,7 +332,7 @@ export const migrations = [
     `,
   },
   {
-    version: 7,
+    version: 9,
     sql: `
       ALTER TABLE providers ADD COLUMN settings_encrypted TEXT;
       ALTER TABLE transactions ADD COLUMN counterparty TEXT;
@@ -331,14 +342,14 @@ export const migrations = [
     `,
   },
   {
-    version: 8,
+    version: 10,
     sql: `
       INSERT INTO providers (key, name, enabled, sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES
         ('plaid', 'Plaid', 1, 360, 60, 14);
     `,
   },
   {
-    version: 9,
+    version: 11,
     sql: `
       CREATE TABLE users_v9 (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -351,11 +362,12 @@ export const migrations = [
           length(primary_color) = 7 AND substr(primary_color, 1, 1) = '#'
           AND substr(primary_color, 2) NOT GLOB '*[^0-9a-f]*'
         ),
+        color_mode TEXT NOT NULL DEFAULT 'system' CHECK (color_mode IN ('system', 'light', 'dark')),
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
       ) STRICT;
-      INSERT INTO users_v9 (id, role, password_hash, session_version, currency, primary_color)
+      INSERT INTO users_v9 (id, role, password_hash, session_version, currency, primary_color, color_mode)
         SELECT u.id, CASE WHEN u.id = 1 THEN 'admin' ELSE 'member' END, s.password_hash,
-          COALESCE(s.session_version, 1), COALESCE(s.currency, 'USD'), u.primary_color
+          COALESCE(s.session_version, 1), COALESCE(s.currency, 'USD'), u.primary_color, u.color_mode
         FROM users u LEFT JOIN settings s ON s.id = 1;
       ${keepSequence("users")}
       DROP TABLE users;
@@ -435,9 +447,11 @@ export const migrations = [
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL REFERENCES users(id),
         name TEXT NOT NULL COLLATE NOCASE,
+        color TEXT NOT NULL DEFAULT '#245e49'
+          CHECK (length(color) = 7 AND substr(color, 1, 1) = '#' AND substr(color, 2) NOT GLOB '*[^0-9a-f]*'),
         UNIQUE (user_id, name)
       ) STRICT;
-      INSERT INTO categories_v9 (id, user_id, name) SELECT id, 1, name FROM categories;
+      INSERT INTO categories_v9 (id, user_id, name, color) SELECT id, 1, name, color FROM categories;
       ${keepSequence("categories")}
       CREATE TABLE budget_months_v9 (
         user_id INTEGER NOT NULL REFERENCES users(id),

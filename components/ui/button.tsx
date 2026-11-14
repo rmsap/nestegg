@@ -10,8 +10,8 @@ type ButtonStyle = {
 export function buttonClass({ variant = "default", size = "md", className }: ButtonStyle) {
   const variants = {
     default: "border-line bg-surface text-ink",
-    primary: "border-primary bg-primary text-on-primary",
-    danger: "border-danger bg-danger text-on-danger",
+    primary: "border-primary-border bg-primary text-on-primary",
+    danger: "border-danger-fill bg-danger-fill text-on-danger",
   };
   const sizes = {
     md: "px-3 py-2",

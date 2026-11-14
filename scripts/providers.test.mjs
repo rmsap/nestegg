@@ -57,11 +57,11 @@ function setup(t) {
   return { db, rows, one };
 }
 
-test("upgrading a version 6 database keeps transactions and adds the new columns", (t) => {
+test("upgrading a version 8 database keeps transactions and adds the new columns", (t) => {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
-  for (const migration of migrations.slice(0, 6)) db.exec(migration.sql);
-  db.exec("PRAGMA user_version = 6");
+  for (const migration of migrations.slice(0, 8)) db.exec(migration.sql);
+  db.exec("PRAGMA user_version = 8");
   db.exec(`
     INSERT INTO accounts (id, name, kind, class) VALUES (1, 'Checking', 'bank', 'asset');
     INSERT INTO transactions (id, date, merchant, account_id, amount_cents, kind, memo) VALUES (1, '2026-11-01', 'Market', 1, -900, 'expense', 'Weekly shop');

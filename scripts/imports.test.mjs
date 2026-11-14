@@ -13,7 +13,7 @@ test("a fresh database reaches the latest version with its seeded user, provider
   t.after(() => db.close());
   initialize(db);
   assert.equal(db.prepare("PRAGMA user_version").get().user_version, migrations.length);
-  assert.equal(migrations.length, 9);
+  assert.equal(migrations.length, 11);
   assert.deepEqual(db.prepare("SELECT id, role, currency, username, password_hash FROM users").all().map((row) => ({ ...row })),
     [{ id: 1, role: "admin", currency: "USD", username: null, password_hash: null }]);
   assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name = 'settings'").get(), undefined);
@@ -25,11 +25,11 @@ test("a fresh database reaches the latest version with its seeded user, provider
   assert.equal(db.prepare("PRAGMA foreign_keys").get().foreign_keys, 1);
 });
 
-test("upgrading a version 5 database preserves ids and links provider accounts", (t) => {
+test("upgrading a version 7 database preserves ids and links provider accounts", (t) => {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
-  for (const migration of migrations.slice(0, 5)) db.exec(migration.sql);
-  db.exec("PRAGMA user_version = 5");
+  for (const migration of migrations.slice(0, 7)) db.exec(migration.sql);
+  db.exec("PRAGMA user_version = 7");
   db.exec(`
     INSERT INTO accounts (id, name, kind, balance_cents) VALUES (3, 'Manual checking', 'bank', 1000);
     INSERT INTO accounts (id, name, kind, balance_cents, provider, external_id)

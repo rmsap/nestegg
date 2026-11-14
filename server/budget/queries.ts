@@ -1,10 +1,10 @@
 import type { DatabaseSync } from "node:sqlite";
 
-export type Category = { id: number; name: string; limit_cents: number; spent: number; activity: number };
+export type Category = { id: number; name: string; color: string; limit_cents: number; spent: number; activity: number };
 
 export function categories(db: DatabaseSync, userId: number, month: string) {
   return db.prepare(`
-    SELECT c.id, c.name, COALESCE(l.limit_cents, 0) AS limit_cents,
+    SELECT c.id, c.name, c.color, COALESCE(l.limit_cents, 0) AS limit_cents,
       COALESCE(SUM(CASE WHEN t.pending = 0 THEN -t.amount_cents END), 0) AS spent,
       (SELECT COUNT(*) FROM transactions WHERE category_id = c.id AND account_id IN (SELECT id FROM accounts WHERE user_id = c.user_id)) AS activity
     FROM categories c

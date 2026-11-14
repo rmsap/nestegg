@@ -1,10 +1,10 @@
 import type { DatabaseSync } from "node:sqlite";
 
-export function insertCategory(db: DatabaseSync, userId: number, name: string, month: string, limit: number) {
+export function insertCategory(db: DatabaseSync, userId: number, name: string, month: string, limit: number, color: string) {
   db.exec("BEGIN IMMEDIATE");
   try {
-    const result = db.prepare("INSERT INTO categories (user_id, name) VALUES (?, ?) ON CONFLICT(user_id, name) DO NOTHING")
-      .run(userId, name);
+    const result = db.prepare("INSERT INTO categories (user_id, name, color) VALUES (?, ?, ?) ON CONFLICT(user_id, name) DO NOTHING")
+      .run(userId, name, color);
     if (result.changes) {
       db.prepare("INSERT INTO budget_months (user_id, month) VALUES (?, ?) ON CONFLICT DO NOTHING").run(userId, month);
       db.prepare("INSERT INTO budget_limits (user_id, month, category_id, limit_cents) VALUES (?, ?, ?, ?)")
@@ -18,16 +18,20 @@ export function insertCategory(db: DatabaseSync, userId: number, name: string, m
   }
 }
 
-export function updateLimits(db: DatabaseSync, userId: number, month: string, updates: { id: number; limit: number }[]) {
+export function updateCategories(db: DatabaseSync, userId: number, month: string, updates: { id: number; limit: number; color: string }[]) {
   const update = db.prepare(`
     INSERT INTO budget_limits (user_id, month, category_id, limit_cents)
     SELECT user_id, ?, id, ? FROM categories WHERE id = ? AND user_id = ?
     ON CONFLICT(user_id, month, category_id) DO UPDATE SET limit_cents = excluded.limit_cents
   `);
+  const updateColor = db.prepare("UPDATE categories SET color = ? WHERE id = ? AND user_id = ?");
   db.exec("BEGIN IMMEDIATE");
   try {
     db.prepare("INSERT INTO budget_months (user_id, month) VALUES (?, ?) ON CONFLICT DO NOTHING").run(userId, month);
-    for (const entry of updates) update.run(month, entry.limit, entry.id, userId);
+    for (const entry of updates) {
+      update.run(month, entry.limit, entry.id, userId);
+      updateColor.run(entry.color, entry.id, userId);
+    }
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");

@@ -6,7 +6,7 @@ import type { EventRow } from "../../server/connections/queries";
 
 const flags: Record<string, { label: string; className: string }> = {
   warning: { label: "Warning", className: "bg-warning! text-warning-text!" },
-  error: { label: "Error", className: "bg-danger! text-on-danger!" },
+  error: { label: "Error", className: "bg-danger-fill! text-on-danger!" },
 };
 
 export function ActivityPanel({ events, expanded, moreHref, lessHref, now }: {

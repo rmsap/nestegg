@@ -8,7 +8,7 @@ export function MetricGrid({ children }: { children: React.ReactNode }) {
 }
 
 export function Metric({ label, value, primary }: { label: string; value: number; primary?: boolean }) {
-  return <div className={`${panelSurface} ${primary ? "bg-primary text-on-primary" : "bg-surface"}`}>
+  return <div className={`${panelSurface} ${primary ? "border-primary-border bg-primary text-on-primary" : "border-line bg-surface"}`}>
     <span className="text-[.9rem]">{label}</span>
     <strong className="mt-1.5 block text-[1.65rem]">{money(value)}</strong>
   </div>;

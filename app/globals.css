@@ -2,45 +2,45 @@
 @source "./";
 @source "../components";
 
-:root {
-  --palette-ink: color-mix(in srgb, var(--theme-primary) 24%, #243029);
-  --palette-muted: color-mix(in srgb, var(--theme-primary) 16%, #4b5951);
-  --palette-primary-text: color-mix(in srgb, var(--theme-primary) 32%, #14251e);
-  --palette-accent: color-mix(in srgb, var(--theme-primary) 15%, white);
-  --palette-focus: color-mix(in srgb, var(--theme-primary) 49%, black);
-}
-
 @theme inline {
-  --color-ink: var(--palette-ink);
-  --color-muted: var(--palette-muted);
+  --color-ink: light-dark(color-mix(in srgb, var(--theme-primary) 24%, #243029), #edf2ee);
+  --color-muted: light-dark(color-mix(in srgb, var(--theme-primary) 16%, #4b5951), #a8b7ae);
   --color-primary: var(--theme-primary);
   --color-on-primary: var(--theme-on-primary);
-  --color-primary-text: var(--palette-primary-text);
-  --color-accent: var(--palette-accent);
-  --color-line: color-mix(in srgb, var(--theme-primary) 14%, white);
-  --color-control: color-mix(in srgb, var(--theme-primary) 25%, white);
-  --color-canvas: color-mix(in srgb, var(--theme-primary) 3%, white);
-  --color-sidebar: color-mix(in srgb, var(--theme-primary) 8%, white);
-  --color-inset: color-mix(in srgb, var(--theme-primary) 5%, white);
-  --color-progress: color-mix(in srgb, var(--theme-primary) 65%, #293c32);
-  --color-focus: var(--palette-focus);
-}
-
-@theme {
-  --color-surface: #fff;
-  --color-danger: #923f2e;
+  --color-primary-border: light-dark(var(--theme-primary-border), var(--theme-primary-border-dark));
+  --color-primary-text: light-dark(var(--theme-accent-strong), var(--theme-accent-strong-dark));
+  --color-accent-strong: light-dark(var(--theme-accent-strong), var(--theme-accent-strong-dark));
+  --color-on-accent: light-dark(white, #101412);
+  --color-accent: light-dark(
+    color-mix(in srgb, var(--theme-accent-strong) 15%, white),
+    color-mix(in srgb, var(--theme-accent-strong-dark) 15%, #1e2220)
+  );
+  --color-line: light-dark(color-mix(in srgb, var(--theme-primary) 14%, white), #363f39);
+  --color-control: light-dark(color-mix(in srgb, var(--theme-primary) 25%, white), #637269);
+  --color-canvas: light-dark(color-mix(in srgb, var(--theme-primary) 3%, white), #131715);
+  --color-sidebar: light-dark(color-mix(in srgb, var(--theme-primary) 8%, white), #191e1b);
+  --color-inset: light-dark(color-mix(in srgb, var(--theme-primary) 5%, white), #242b27);
+  --color-progress: light-dark(var(--theme-accent-strong), var(--theme-accent-strong-dark));
+  --color-focus: light-dark(var(--theme-accent-strong), var(--theme-accent-strong-dark));
+  --color-surface: light-dark(white, #1e2220);
+  --color-danger: light-dark(#923f2e, #ffac9b);
+  --color-danger-fill: light-dark(#923f2e, #9f4434);
   --color-on-danger: #fff;
-  --color-warning: #ffe49a;
-  --color-warning-text: #694a00;
-  --color-over-budget: #b97454;
-  --shadow-popover: 0 4px 12px #243b3120;
+  --color-warning: light-dark(#ffe49a, #493710);
+  --color-warning-text: light-dark(#694a00, #ffe49a);
+  --color-over-budget: light-dark(#b97454, #e49c7d);
+  --shadow-popover: 0 4px 12px light-dark(#243b3120, #0008);
 }
 
 @custom-variant compact (@media (max-width: 680px));
 
 @layer base {
+  [data-color-mode="light"] { color-scheme: light; }
+  [data-color-mode="dark"] { color-scheme: dark; }
+  [data-color-mode="system"] { color-scheme: light dark; }
+
   body {
-    @apply bg-canvas text-ink scheme-light font-sans text-[15px] leading-normal;
+    @apply bg-canvas text-ink font-sans text-[15px] leading-normal;
   }
 
   a {

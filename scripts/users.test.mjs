@@ -32,8 +32,8 @@ const count = (db, sql, ...args) => Number(db.prepare(sql).get(...args).n);
 function populatedVersion8(t) {
   const db = new DatabaseSync(":memory:");
   t.after(() => db.close());
-  for (const migration of migrations.slice(0, 8)) db.exec(migration.sql);
-  db.exec("PRAGMA user_version = 8");
+  for (const migration of migrations.slice(0, 10)) db.exec(migration.sql);
+  db.exec("PRAGMA user_version = 10");
   const settings = encrypt(key, "provider-settings", JSON.stringify({ clientId: "cid_1", secret: "sec_1" }));
   const credential = encrypt(key, "connection-credential", "access-token-1");
   db.prepare("UPDATE providers SET settings_encrypted = ?, sync_interval_minutes = 90, enabled = 0 WHERE key = 'plaid'").run(settings);
@@ -62,7 +62,7 @@ function populatedVersion8(t) {
   return db;
 }
 
-test("migration 9 moves a populated version 8 database to per-user ownership without losing rows", (t) => {
+test("migration 11 moves a populated version 10 database to per-user ownership without losing rows", (t) => {
   const db = populatedVersion8(t);
   const ids = (table, column = "id") => rows(db, `SELECT ${column} AS id FROM ${table} ORDER BY ${column}`).map((row) => row.id);
   const owned = ["connections", "accounts", "categories", "events", "notification_targets", "notification_matchers"];
@@ -72,7 +72,7 @@ test("migration 9 moves a populated version 8 database to per-user ownership wit
   const transactions = rows(db, "SELECT id, category_id, reviewed, memo, account_id, first_seen_sync_run_id FROM transactions ORDER BY id");
   initialize(db);
 
-  assert.equal(db.prepare("PRAGMA user_version").get().user_version, 9);
+  assert.equal(db.prepare("PRAGMA user_version").get().user_version, 11);
   for (const [table, expected] of Object.entries(before)) assert.deepEqual(ids(table), expected, table);
   assert.deepEqual(rows(db, "SELECT month, category_id, limit_cents FROM budget_limits ORDER BY month, category_id"), limits);
   assert.deepEqual(rows(db, "SELECT month, expected_income_cents FROM budget_months ORDER BY month"), months);
@@ -104,7 +104,7 @@ test("migration 9 moves a populated version 8 database to per-user ownership wit
   assert.equal(db.prepare("INSERT INTO events (severity, type, actor, message) VALUES ('info', 'x', 'system', 'm') RETURNING user_id").get().user_id, null);
 
   const fresh = open(t);
-  assert.equal(fresh.prepare("PRAGMA user_version").get().user_version, 9);
+  assert.equal(fresh.prepare("PRAGMA user_version").get().user_version, 11);
   assert.deepEqual(rows(fresh, "PRAGMA foreign_key_check"), []);
 });
 
@@ -223,7 +223,7 @@ async function seedUser(db, id, tag) {
   setProviderEnabled(db, id, "plaid", false);
   setProviderSettings(db, id, key, { key: "demo", settings: [] }, {});
   await syncConnection(db, key, connection, demo, { now: T0 });
-  insertCategory(db, id, tag + " Food", "2026-11", 5000);
+  insertCategory(db, id, tag + " Food", "2026-11", 5000, "#336699");
   const category = Number(db.prepare("SELECT id FROM categories WHERE user_id = ?").get(id).id);
   const transaction = Number(db.prepare("SELECT t.id FROM transactions t JOIN accounts a ON a.id = t.account_id WHERE a.user_id = ? AND t.kind = 'expense' ORDER BY t.id LIMIT 1").get(id).id);
   assert.equal(saveReview(db, id, transaction, { categoryId: category }), true);

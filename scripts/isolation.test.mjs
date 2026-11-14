@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { accounts } from "../server/accounts/queries.ts";
 import { budgetIncome, categories, uncategorizedSpending } from "../server/budget/queries.ts";
-import { insertCategory, removeCategory, updateLimits } from "../server/budget/mutations.ts";
+import { insertCategory, removeCategory, updateCategories } from "../server/budget/mutations.ts";
 import {
   beginConnection, completeConnection, createConnection, deleteConnection, disconnectAndDelete, replaceCredential, setConnectionEnabled,
 } from "../server/connections/mutations.ts";
@@ -19,7 +19,7 @@ import { syncDueConnections } from "../server/schedule/sync-job.ts";
 import { decrypt } from "../server/secrets.ts";
 import { transactions } from "../server/transactions/queries.ts";
 import { saveReview } from "../server/transactions/mutations.ts";
-import { userPrimaryColor } from "../server/users/users.ts";
+import { userAppearance } from "../server/users/users.ts";
 
 const key = randomBytes(32);
 const T0 = new Date("2026-11-10T12:00:00.000Z");
@@ -60,7 +60,7 @@ function household(db, user, tag, income) {
   setConnectionEnabled(db, user, connection, true);
   const account = Number(db.prepare(`INSERT INTO accounts (user_id, name, kind, class, balance_cents, connection_id, external_id)
     VALUES (?, ?, 'bank', 'asset', 1000, ?, 'x') RETURNING id`).get(user, tag + " Checking", connection).id);
-  insertCategory(db, user, tag + " Food", MONTH, 5000);
+  insertCategory(db, user, tag + " Food", MONTH, 5000, "#336699");
   const category = Number(db.prepare("SELECT id FROM categories WHERE user_id = ?").get(user).id);
   db.prepare("UPDATE budget_months SET expected_income_cents = ? WHERE user_id = ? AND month = ?").run(income, user, MONTH);
   const add = (merchant, amount, categoryId) => Number(db.prepare(`INSERT INTO transactions (date, merchant, account_id, amount_cents, category_id, kind)
@@ -126,7 +126,7 @@ test("every read returns only the asking user's rows", (t) => {
     assert.ok(events.every((event) => event.connection === me.tag + " Bank"));
     assert.deepEqual(providerList(db, me.user).map((row) => row.key), ["demo", "plaid", "simplefin"]);
     assert.deepEqual(providerSettings(db, me.user, key, "demo"), {});
-    assert.equal(userPrimaryColor(db, me.user), "#245e49");
+    assert.equal(userAppearance(db, me.user).color, "#245e49");
   }
   assert.deepEqual(accounts(db, GONE), []);
   assert.deepEqual(categories(db, GONE, MONTH), []);
@@ -159,8 +159,8 @@ test("every by-id write on another user's row behaves like a missing id and chan
   assert.equal(removeCategory(db, a.user, a.category, GONE), "replacement-required");
   assert.equal(count(db, "SELECT COUNT(*) AS n FROM categories WHERE id = ?", a.category), 1);
 
-  assert.equal(updateLimits(db, a.user, MONTH, [{ id: b.category, limit: 1 }]), undefined);
-  assert.equal(updateLimits(db, a.user, MONTH, [{ id: GONE, limit: 1 }]), undefined);
+  assert.equal(updateCategories(db, a.user, MONTH, [{ id: b.category, limit: 1, color: "#aa5500" }]), undefined);
+  assert.equal(updateCategories(db, a.user, MONTH, [{ id: GONE, limit: 1, color: "#aa5500" }]), undefined);
   assert.equal(count(db, "SELECT COUNT(*) AS n FROM budget_limits WHERE category_id = ?", b.category), 1);
 
   const missing = "Connection not found";
@@ -191,16 +191,17 @@ test("every by-id write on another user's row behaves like a missing id and chan
 test("two users can each have a category with the same name and a budget for the same month", (t) => {
   const db = open(t);
   const [a, b] = [addUser(db, "admin"), addUser(db)];
-  assert.equal(insertCategory(db, a, "Food", MONTH, 10_000), true);
-  assert.equal(insertCategory(db, b, "food", MONTH, 20_000), true);
-  assert.equal(insertCategory(db, a, "FOOD", MONTH, 30_000), false);
+  assert.equal(insertCategory(db, a, "Food", MONTH, 10_000, "#336699"), true);
+  assert.equal(insertCategory(db, b, "food", MONTH, 20_000, "#336699"), true);
+  assert.equal(insertCategory(db, a, "FOOD", MONTH, 30_000, "#336699"), false);
   assert.deepEqual(categories(db, a, MONTH).map((item) => [item.name, item.limit_cents]), [["Food", 10_000]]);
   assert.deepEqual(categories(db, b, MONTH).map((item) => [item.name, item.limit_cents]), [["food", 20_000]]);
   assert.equal(count(db, "SELECT COUNT(*) AS n FROM budget_months WHERE month = ?", MONTH), 2);
   const [first] = categories(db, a, MONTH);
-  updateLimits(db, b, MONTH, [{ id: first.id, limit: 1 }]);
+  updateCategories(db, b, MONTH, [{ id: first.id, limit: 1, color: "#aa5500" }]);
   assert.equal(categories(db, a, MONTH)[0].limit_cents, 10_000);
-  updateLimits(db, a, MONTH, [{ id: first.id, limit: 11_000 }]);
+  assert.equal(categories(db, a, MONTH)[0].color, "#336699");
+  updateCategories(db, a, MONTH, [{ id: first.id, limit: 11_000, color: "#aa5500" }]);
   assert.deepEqual([categories(db, a, MONTH)[0].limit_cents, categories(db, b, MONTH)[0].limit_cents], [11_000, 20_000]);
   assert.equal(removeCategory(db, a, first.id, 0), "deleted");
   assert.equal(categories(db, b, MONTH).length, 1);

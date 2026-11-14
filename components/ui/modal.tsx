@@ -62,7 +62,7 @@ export function Modal({ title, closeHref, step, children }: {
     }
   }
 
-  return <div className="fixed inset-0 z-40 flex items-center justify-center bg-ink/40 p-4 transition-opacity duration-150 starting:opacity-0 motion-reduce:transition-none compact:items-end compact:p-0"
+  return <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 transition-opacity duration-150 starting:opacity-0 motion-reduce:transition-none compact:items-end compact:p-0"
     onPointerDown={(event) => { if (event.target === event.currentTarget) leave(); }}>
     <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onKeyDown={trap}
       className="max-h-[calc(100dvh-32px)] w-full max-w-[480px] overflow-y-auto rounded-[14px] border border-line bg-surface p-5 shadow-popover outline-none compact:max-w-none compact:rounded-b-none compact:p-4">

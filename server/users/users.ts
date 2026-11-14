@@ -1,6 +1,6 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { primaryColor } from "../../lib/theme.ts";
+import { parseColorMode, primaryColor, type ColorMode } from "../../lib/theme.ts";
 import { recordEvent } from "../events.ts";
 
 export type Role = "admin" | "member";
@@ -177,10 +177,11 @@ export function userById(db: DatabaseSync, id: number) {
   return row ? { ...row } as { id: number; username: string | null; role: Role; currency: string; primary_color: string | null; session_version: number } : undefined;
 }
 
-export function userPrimaryColor(db: DatabaseSync, userId: number) {
-  return primaryColor(db.prepare("SELECT primary_color FROM users WHERE id = ?").get(userId)?.primary_color);
+export function userAppearance(db: DatabaseSync, userId: number) {
+  const user = db.prepare("SELECT primary_color, color_mode FROM users WHERE id = ?").get(userId);
+  return { color: primaryColor(user?.primary_color), mode: parseColorMode(user?.color_mode) ?? "system" };
 }
 
-export function setUserPrimaryColor(db: DatabaseSync, userId: number, color: string) {
-  db.prepare("UPDATE users SET primary_color = ? WHERE id = ?").run(color, userId);
+export function setUserAppearance(db: DatabaseSync, userId: number, color: string, mode: ColorMode) {
+  db.prepare("UPDATE users SET primary_color = ?, color_mode = ? WHERE id = ?").run(color, mode, userId);
 }
