@@ -1,0 +1,7 @@
+.next/
+node_modules/
+data/
+coverage/
+next-env.d.ts
+package-lock.json
+docs/UI_MOCKS.html

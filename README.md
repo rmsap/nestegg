@@ -23,6 +23,11 @@ npm.cmd run typecheck
 npm.cmd run build
 ```
 
+## Linting and formatting
+
+- `npm.cmd run lint` checks the whole app with ESLint. GitHub Actions checks changed files on pull requests. Warnings and errors fail either check.
+- `npm.cmd run format` formats the code with Prettier. Use `npm.cmd run format:check` to check formatting without writing files.
+
 ## Code layout
 
 - `app/` contains the App Router pages and shared layout. Budget and Transactions each own their form actions. The overview lives at `/`.
