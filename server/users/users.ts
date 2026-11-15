@@ -89,6 +89,7 @@ export function deleteUser(db: DatabaseSync, id: number) {
     run("DELETE FROM events WHERE user_id = ?");
     run("DELETE FROM transactions WHERE account_id IN (SELECT id FROM accounts WHERE user_id = ?)");
     run("DELETE FROM balance_snapshots WHERE account_id IN (SELECT id FROM accounts WHERE user_id = ?)");
+    run("DELETE FROM goals WHERE user_id = ?");
     run("DELETE FROM accounts WHERE user_id = ?");
     run("DELETE FROM sync_runs WHERE connection_id IN (SELECT id FROM connections WHERE user_id = ?)");
     run("DELETE FROM connections WHERE user_id = ?");

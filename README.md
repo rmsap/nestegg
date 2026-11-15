@@ -16,6 +16,10 @@ Open [http://127.0.0.1:3000](http://127.0.0.1:3000). The development and start s
 
 Open **Budget** to add a category. **Edit categories** opens the limits and shows an × beside each name. Deleting a category with transactions requires a destination category. **Transactions** supports search, category filters, and review.
 
+On **Goals**, choose a funding account for each goal. Nestegg automatically splits available cash among that account’s unfinished goals when you create a goal or sync the account. Set an optional **Cash buffer** to keep money available for other expenses. Existing reservations stay in place if a withdrawal creates a shortfall, and funding resumes when the balance covers the reservations and buffer.
+
+Use the goal icon beside a posted expense in **Transactions** to spend from a goal. Card and debit purchases count immediately. One-time goals pause funding when spending starts and release unused funds when closed. Refillable goals build back up as funds become available.
+
 The app and seed command use the same database. The seed leaves existing records intact. Set `NESTEGG_DATA_DIR` only when you want to point the app or seed command at a different directory.
 
 ```powershell
@@ -47,7 +51,7 @@ Playwright starts the production build on port 3100 with a fresh demo database i
 - `app/` contains the App Router pages and shared layout. Budget and Transactions each own their form actions. The overview lives at `/`.
 - `components/` contains shared presentation such as navigation, metrics, and the activity list.
 - `server/budget/` and `server/transactions/` contain SQLite queries and writes for each feature. The form actions parse input and delegate to these modules.
-- `server/db/` handles the SQLite connection and numbered migrations. `server/accounts/` reads persisted accounts. `scripts/seed-demo.mjs` loads sample rows separately, and `server/demo.ts` holds the sample goals.
+- `server/db/` handles the SQLite connection and numbered migrations. `server/accounts/` reads persisted accounts, and `server/goals/` stores savings goals. `scripts/seed-demo.mjs` loads sample rows separately.
 
 ## Deployment
 

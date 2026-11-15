@@ -4,6 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import { createConnection, deleteConnection, replaceCredential, setConnectionEnabled } from "../connections/mutations.ts";
 import { initialize } from "../db/migrations.ts";
+import { fundingAccounts, insertGoal, listGoals, setGoalCashBuffer } from "../goals/goals.ts";
 import { setSyncInterval } from "./provider-settings.ts";
 import { syncConnection } from "./sync.ts";
 import { ProviderError } from "./transaction-provider.ts";
@@ -50,6 +51,77 @@ test("the stored credential is encrypted and the adapter receives the plaintext"
   assert.equal(decrypt(key, "connection-credential", stored), secret);
   await sync();
   assert.equal(adapter.calls[0].credential, secret);
+});
+
+test("sync shares each account's excess evenly, protects buffers, and stops at goal targets", async (t) => {
+  const { db, adapter, sync, one } = setup(t);
+  const balances = (balanceCents, otherBalance = 0) => [
+    account([], { balanceCents }),
+    account([], { balanceCents: otherBalance, externalId: "other", name: "Vacation savings" }),
+  ];
+  adapter.accounts = balances(0);
+  await sync();
+  const accountId = one("SELECT id FROM accounts WHERE external_id = 'account-1'").id;
+  const other = one("SELECT id FROM accounts WHERE external_id = 'other'").id;
+  setGoalCashBuffer(db, 1, accountId, 5000);
+  insertGoal(db, 1, { name: "Small goal", account_id: accountId, target_cents: 4000 });
+  insertGoal(db, 1, { name: "Trip", account_id: accountId, target_cents: 40000 });
+  insertGoal(db, 1, { name: "Emergency", account_id: accountId, target_cents: 40000 });
+  insertGoal(db, 1, { name: "Vacation", account_id: other, target_cents: 20000 });
+  const saved = () => listGoals(db, 1).map(({ saved_cents }) => saved_cents);
+  const funding = () => fundingAccounts(db, 1, accountId)[0];
+  assert.deepEqual(saved(), [0, 0, 0, 0]);
+
+  adapter.accounts = balances(35001, 5500);
+  await sync(later(1));
+  assert.deepEqual(saved(), [4000, 13001, 13000, 5500]);
+  assert.equal(funding().available, 0);
+  await sync(later(1));
+  assert.deepEqual(saved(), [4000, 13001, 13000, 5500]);
+
+  adapter.accounts = balances(28000, 5500);
+  await sync(later(2));
+  assert.equal(funding().shortfall, 2001);
+  assert.deepEqual(saved(), [4000, 13001, 13000, 5500]);
+  adapter.accounts = balances(null, 5500);
+  await sync(later(3));
+  assert.equal(funding().balance_cents, 28000);
+  adapter.accounts = balances(35001, 5500);
+  await sync(later(4));
+  assert.equal(funding().shortfall, 0);
+  assert.deepEqual(saved(), [4000, 13001, 13000, 5500]);
+
+  adapter.accounts = [...balances(100000, 5500), account([], { externalId: "invalid", currency: "EUR" })];
+  await assert.rejects(sync(later(5)), /unsupported currency/);
+  assert.deepEqual(saved(), [4000, 13001, 13000, 5500]);
+  assert.equal(funding().balance_cents, 35001);
+  adapter.accounts = balances(100000, 5500);
+  await sync(later(5));
+  assert.deepEqual(saved(), [4000, 40000, 40000, 5500]);
+  assert.equal(funding().available, 11000);
+});
+
+test("an interrupted sync cannot allocate funds or overwrite the newer balance", async (t) => {
+  const { db, adapter, sync, id, one } = setup(t);
+  adapter.accounts = [account()];
+  await sync();
+  const accountId = one("SELECT id FROM accounts").id;
+  insertGoal(db, 1, { name: "Trip", account_id: accountId, target_cents: 20000 });
+
+  let respond;
+  const pending = new Promise((resolve) => { respond = resolve; });
+  const interrupted = assert.rejects(
+    syncConnection(db, key, id, { ...adapter, fetchAccounts: () => pending }, { now: later(1) }),
+    /sync was interrupted/,
+  );
+  adapter.accounts = [account([], { balanceCents: 6200 })];
+  await sync(later(2));
+  respond([account([], { balanceCents: 12400 })]);
+  await interrupted;
+
+  assert.equal(fundingAccounts(db, 1)[0].balance_cents, 6200);
+  assert.equal(listGoals(db, 1)[0].saved_cents, 6200);
+  assert.equal(one("SELECT status FROM connections").status, "active");
 });
 
 test("a first sync covers 730 days and a later sync starts lookback_days before the previous sync", async (t) => {

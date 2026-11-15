@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { recordEvent } from "../events.ts";
+import { allocateGoalFunds } from "../goals/goals.ts";
 import { decrypt } from "../secrets.ts";
 import { providerSettings } from "./provider-settings.ts";
 import { ProviderError } from "./transaction-provider.ts";
@@ -54,6 +55,9 @@ function apply(db: DatabaseSync, userId: number, connectionId: number, syncRunId
   actor: "owner" | "scheduler", now: Date) {
   db.exec("BEGIN IMMEDIATE");
   try {
+    if (!db.prepare("SELECT 1 FROM sync_runs WHERE id = ? AND status = 'running'").get(syncRunId)) {
+      throw new SyncError("This sync was interrupted");
+    }
     if (!Array.isArray(accounts)) throw new SyncError("Invalid provider response");
     const at = now.toISOString();
     const today = day(now);
@@ -94,7 +98,10 @@ function apply(db: DatabaseSync, userId: number, connectionId: number, syncRunId
         account.kind === "credit_card" || account.kind === "loan" ? "liability" : "asset", account.currency,
         account.balanceCents, account.balanceCents === null ? null : at, connectionId, account.externalId,
         account.institution ?? null, account.lastFour ?? null)?.id);
-      if (account.balanceCents !== null) snapshot.run(accountId, today, account.balanceCents);
+      if (account.balanceCents !== null) {
+        snapshot.run(accountId, today, account.balanceCents);
+        if (account.kind === "bank") allocateGoalFunds(db, userId, accountId);
+      }
       const seen = new Set<string>();
       for (const entry of account.transactions) {
         const date = new Date(entry.date + "T00:00:00Z");
@@ -163,14 +170,16 @@ function fail(db: DatabaseSync, userId: number, connectionId: number, syncRunId:
   const auth = error instanceof ProviderError && error.kind === "auth";
   db.exec("BEGIN IMMEDIATE");
   try {
-    db.prepare("UPDATE sync_runs SET status = 'failed', finished_at = ?, error = ? WHERE id = ?")
+    const run = db.prepare("UPDATE sync_runs SET status = 'failed', finished_at = ?, error = ? WHERE id = ? AND status = 'running'")
       .run(now.toISOString(), message, syncRunId);
-    db.prepare("UPDATE connections SET status = ?, last_error = ? WHERE id = ?")
-      .run(auth ? "needs_reauth" : "error", message, connectionId);
-    recordEvent(db, {
-      severity: "error", type: auth ? "connection.needs_reauth" : "sync.failed", actor, userId, connectionId, syncRunId,
-      message: auth ? "Connection needs to be re-authorized" : "Sync failed", detail: { error: message },
-    });
+    if (run.changes) {
+      db.prepare("UPDATE connections SET status = ?, last_error = ? WHERE id = ?")
+        .run(auth ? "needs_reauth" : "error", message, connectionId);
+      recordEvent(db, {
+        severity: "error", type: auth ? "connection.needs_reauth" : "sync.failed", actor, userId, connectionId, syncRunId,
+        message: auth ? "Connection needs to be re-authorized" : "Sync failed", detail: { error: message },
+      });
+    }
     db.exec("COMMIT");
   } catch (failure) {
     db.exec("ROLLBACK");

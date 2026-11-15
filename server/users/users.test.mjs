@@ -71,7 +71,7 @@ test("migration 11 moves a populated version 10 database to per-user ownership w
   const transactions = rows(db, "SELECT id, category_id, reviewed, memo, account_id, first_seen_sync_run_id FROM transactions ORDER BY id");
   initialize(db);
 
-  assert.equal(db.prepare("PRAGMA user_version").get().user_version, 11);
+  assert.equal(db.prepare("PRAGMA user_version").get().user_version, migrations.length);
   for (const [table, expected] of Object.entries(before)) assert.deepEqual(ids(table), expected, table);
   assert.deepEqual(rows(db, "SELECT month, category_id, limit_cents FROM budget_limits ORDER BY month, category_id"), limits);
   assert.deepEqual(rows(db, "SELECT month, expected_income_cents FROM budget_months ORDER BY month"), months);
@@ -105,7 +105,7 @@ test("migration 11 moves a populated version 10 database to per-user ownership w
   assert.equal(db.prepare("INSERT INTO events (severity, type, actor, message) VALUES ('info', 'x', 'system', 'm') RETURNING user_id").get().user_id, null);
 
   const fresh = open(t);
-  assert.equal(fresh.prepare("PRAGMA user_version").get().user_version, 11);
+  assert.equal(fresh.prepare("PRAGMA user_version").get().user_version, migrations.length);
   assert.deepEqual(rows(fresh, "PRAGMA foreign_key_check"), []);
 });
 

@@ -15,7 +15,8 @@ try {
       SELECT EXISTS(
         SELECT 1 FROM categories UNION ALL
         SELECT 1 FROM accounts UNION ALL
-        SELECT 1 FROM budget_months
+        SELECT 1 FROM budget_months UNION ALL
+        SELECT 1 FROM goals
       ) AS occupied
     `).get();
     if (occupied) {
@@ -34,6 +35,8 @@ try {
         INSERT INTO budget_limits (user_id, month, category_id, limit_cents) VALUES
           (1, '2026-11', 1, 200000), (1, '2026-11', 2, 65000), (1, '2026-11', 3, 30000),
           (1, '2026-11', 4, 25000), (1, '2026-11', 5, 30000), (1, '2026-11', 6, 170000);
+        INSERT INTO goals (user_id, account_id, name, target_cents, saved_cents, funding_mode) VALUES
+          (1, 2, 'Emergency fund', 1500000, 1000000, 'refillable'), (1, 2, 'A week away', 400000, 225000, 'one-time');
         INSERT INTO transactions
           (id, date, merchant, account_id, amount_cents, category_id, kind, pending, reviewed) VALUES
           (1,'2026-11-08','Whole Foods Market',3,-8642,2,'expense',0,0),

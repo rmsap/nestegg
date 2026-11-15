@@ -34,7 +34,7 @@ function count(number: number, noun: string) {
 }
 
 function refresh() {
-  for (const path of ["/connections", "/accounts", "/transactions", "/budget", "/"]) revalidatePath(path);
+  for (const path of ["/connections", "/accounts", "/transactions", "/budget", "/goals", "/"]) revalidatePath(path);
 }
 
 function landing(id: number, fresh: boolean, notice: string) {

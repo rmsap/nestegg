@@ -13,7 +13,6 @@ test("a fresh database reaches the latest version with its seeded user, provider
   t.after(() => db.close());
   initialize(db);
   assert.equal(db.prepare("PRAGMA user_version").get().user_version, migrations.length);
-  assert.equal(migrations.length, 11);
   assert.deepEqual(db.prepare("SELECT id, currency, username, password_hash FROM users").all().map((row) => ({ ...row })),
     [{ id: 1, currency: "USD", username: null, password_hash: null }]);
   assert.equal(db.prepare("SELECT name FROM sqlite_master WHERE name = 'settings'").get(), undefined);

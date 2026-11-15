@@ -8,6 +8,7 @@ import { categories } from "../../server/budget/queries";
 import { reportingMonth } from "../../lib/reporting";
 import { transactions } from "../../server/transactions/queries";
 import { database } from "../../server/db/connection";
+import { goalChoices } from "../../server/goals/goals";
 import { currentUser } from "../../server/session";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +45,7 @@ export default async function TransactionsPage({ searchParams }: {
         </Field>
         <Button type="submit" variant="primary">Filter</Button>
       </form>
-      <div className="mt-4"><Activity list={filtered} categoryChoices={categoryChoices} /></div>
+      <div className="mt-4"><Activity list={filtered} categoryChoices={categoryChoices} goalChoices={goalChoices(db, user.id)} /></div>
     </Panel>
   </>;
 }
