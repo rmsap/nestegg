@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
-import { createConnection, setConnectionEnabled } from "../server/connections/mutations.ts";
-import { initialize } from "../server/db/migrations.ts";
-import { setProviderSettings } from "../server/imports/provider-settings.ts";
-import { syncConnection } from "../server/imports/sync.ts";
+import { createConnection, setConnectionEnabled } from "../connections/mutations.ts";
+import { initialize } from "../db/migrations.ts";
+import { setProviderSettings } from "./provider-settings.ts";
+import { syncConnection } from "./sync.ts";
 
 const day = (date) => date.toISOString().slice(0, 10);
 const KINDS = ["bank", "credit_card", "investment", "loan", "other"];

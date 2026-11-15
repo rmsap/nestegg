@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { initialize, migrations } from "../server/db/migrations.ts";
+import { initialize, migrations } from "./migrations.ts";
 
 function connect(db) {
   db.exec("INSERT INTO providers (key, name, default_sync_interval_minutes, min_sync_interval_minutes, lookback_days) VALUES ('fixture', 'Fixture', 360, 15, 10)");

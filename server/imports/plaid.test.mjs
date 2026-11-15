@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { createConnection, setConnectionEnabled } from "../server/connections/mutations.ts";
-import { initialize } from "../server/db/migrations.ts";
-import { notReadyRetry, plaid } from "../server/imports/plaid.ts";
-import { syncConnection } from "../server/imports/sync.ts";
-import { ProviderError } from "../server/imports/transaction-provider.ts";
+import { createConnection, setConnectionEnabled } from "../connections/mutations.ts";
+import { initialize } from "../db/migrations.ts";
+import { notReadyRetry, plaid } from "./plaid.ts";
+import { syncConnection } from "./sync.ts";
+import { ProviderError } from "./transaction-provider.ts";
 import { checkAdapter } from "./adapter-contract.mjs";
 
 const T0 = new Date("2026-11-10T12:00:00.000Z");

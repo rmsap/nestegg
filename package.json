@@ -9,7 +9,8 @@
     "dev": "next dev --webpack --hostname 127.0.0.1",
     "seed:demo": "node --experimental-strip-types scripts/seed-demo.mjs",
     "sync": "node --experimental-strip-types scripts/sync.mjs",
-    "test": "node --experimental-strip-types --test scripts/imports.test.mjs scripts/sync.test.mjs scripts/secrets.test.mjs scripts/schedule.test.mjs scripts/providers.test.mjs scripts/plaid.test.mjs scripts/connections.test.mjs scripts/users.test.mjs scripts/isolation.test.mjs",
+    "test": "node --experimental-strip-types --test \"lib/**/*.test.mjs\" \"server/**/*.test.mjs\" \"scripts/*.test.mjs\"",
+    "test:e2e": "node scripts/test-browser.mjs",
     "build": "next build --webpack",
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit"
@@ -22,6 +23,7 @@
     "server-only": "0.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.1",
     "@tailwindcss/postcss": "^4.3.5",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",

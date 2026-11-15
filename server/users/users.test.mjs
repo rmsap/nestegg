@@ -2,18 +2,18 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { insertCategory } from "../server/budget/mutations.ts";
-import { createConnection, setConnectionEnabled } from "../server/connections/mutations.ts";
-import { initialize, migrations } from "../server/db/migrations.ts";
-import { recordEvent } from "../server/events.ts";
-import { demo } from "../server/imports/demo.ts";
-import { setProviderEnabled, setProviderSettings } from "../server/imports/provider-settings.ts";
-import { syncConnection } from "../server/imports/sync.ts";
-import { decrypt, encrypt } from "../server/secrets.ts";
-import { saveReview } from "../server/transactions/mutations.ts";
+import { insertCategory } from "../budget/mutations.ts";
+import { createConnection, setConnectionEnabled } from "../connections/mutations.ts";
+import { initialize, migrations } from "../db/migrations.ts";
+import { recordEvent } from "../events.ts";
+import { demo } from "../imports/demo.ts";
+import { setProviderEnabled, setProviderSettings } from "../imports/provider-settings.ts";
+import { syncConnection } from "../imports/sync.ts";
+import { decrypt, encrypt } from "../secrets.ts";
+import { saveReview } from "../transactions/mutations.ts";
 import {
   authenticate, createUser, deleteUser, hashPassword, setPassword, userById, verifyPassword,
-} from "../server/users/users.ts";
+} from "./users.ts";
 
 const key = randomBytes(32);
 const T0 = new Date("2026-11-10T12:00:00.000Z");
