@@ -2,24 +2,24 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { accounts } from "../server/accounts/queries.ts";
-import { budgetIncome, categories, uncategorizedSpending } from "../server/budget/queries.ts";
-import { insertCategory, removeCategory, updateCategories } from "../server/budget/mutations.ts";
+import { accounts } from "../accounts/queries.ts";
+import { budgetIncome, categories, uncategorizedSpending } from "../budget/queries.ts";
+import { insertCategory, removeCategory, updateCategories } from "../budget/mutations.ts";
 import {
   beginConnection, completeConnection, createConnection, deleteConnection, disconnectAndDelete, replaceCredential, setConnectionEnabled,
-} from "../server/connections/mutations.ts";
-import { connectionAccounts, connectionList, providerList, readouts, recentEvents, recentRuns } from "../server/connections/queries.ts";
-import { initialize } from "../server/db/migrations.ts";
-import { demo } from "../server/imports/demo.ts";
+} from "../connections/mutations.ts";
+import { connectionAccounts, connectionList, providerList, readouts, recentEvents, recentRuns } from "../connections/queries.ts";
+import { initialize } from "../db/migrations.ts";
+import { demo } from "../imports/demo.ts";
 import {
   describeProviderSettings, providerSettings, setProviderEnabled, setProviderSettings, setSyncInterval,
-} from "../server/imports/provider-settings.ts";
-import { syncConnection } from "../server/imports/sync.ts";
-import { syncDueConnections } from "../server/schedule/sync-job.ts";
-import { decrypt } from "../server/secrets.ts";
-import { transactions } from "../server/transactions/queries.ts";
-import { saveReview } from "../server/transactions/mutations.ts";
-import { createUser, userAppearance } from "../server/users/users.ts";
+} from "../imports/provider-settings.ts";
+import { syncConnection } from "../imports/sync.ts";
+import { syncDueConnections } from "../schedule/sync-job.ts";
+import { decrypt } from "../secrets.ts";
+import { transactions } from "../transactions/queries.ts";
+import { saveReview } from "../transactions/mutations.ts";
+import { createUser, userAppearance } from "./users.ts";
 
 const key = randomBytes(32);
 const T0 = new Date("2026-11-10T12:00:00.000Z");

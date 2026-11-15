@@ -23,6 +23,20 @@ npm.cmd run typecheck
 npm.cmd run build
 ```
 
+## Tests
+
+Run the unit and SQLite integration suite with `npm test`. Tests live alongside the code they exercise in `lib/`, `server/`, and `scripts/`. The browser specs live in `tests/e2e/`.
+
+To run the browser suite locally:
+
+```powershell
+npx.cmd playwright install chromium
+npm.cmd run build
+npm.cmd run test:e2e
+```
+
+Playwright starts the production build on port 3100 with a fresh demo database in a temporary directory. Provider tests use fixtures and mocked HTTP, and the browser suite uses Demo Bank. The Tests workflow runs both suites on pull requests.
+
 ## Linting and formatting
 
 - `npm.cmd run lint` checks the whole app with ESLint. GitHub Actions checks changed files on pull requests. Warnings and errors fail either check.
@@ -45,7 +59,7 @@ This prototype uses Node's built-in SQLite driver and USD integer cents. The pro
 
 ### Transaction providers
 
-`server/imports/transaction-provider.ts` defines the adapter contract and the normalized accounts and transactions an adapter returns, and `server/imports/providers.ts` registers adapters by provider key. An adapter has four operations: begin and complete a connection, fetch accounts for a date window, and optionally disconnect. Each provider's settings are stored encrypted. `server/imports/sync.ts` syncs one connection: it fetches a date window with the decrypted credential and settings, then imports the batch atomically. A built-in demo provider generates deterministic accounts and transactions, including pending rows and failure scenarios, so the whole flow works without a bank. A new provider implements the adapter contract, passes `scripts/adapter-contract.mjs`, and registers itself. Account identity is scoped to the connection and transaction identity to the imported account. A connection switch leaves both sets of records available under their own identities, so overlapping history needs explicit reconciliation.
+`server/imports/transaction-provider.ts` defines the adapter contract and the normalized accounts and transactions an adapter returns, and `server/imports/providers.ts` registers adapters by provider key. An adapter has four operations: begin and complete a connection, fetch accounts for a date window, and optionally disconnect. Each provider's settings are stored encrypted. `server/imports/sync.ts` syncs one connection: it fetches a date window with the decrypted credential and settings, then imports the batch atomically. A built-in demo provider generates deterministic accounts and transactions, including pending rows and failure scenarios, so the whole flow works without a bank. A new provider implements the adapter contract, passes `server/imports/adapter-contract.mjs`, and registers itself. Account identity is scoped to the connection and transaction identity to the imported account. A connection switch leaves both sets of records available under their own identities, so overlapping history needs explicit reconciliation.
 
 Enabled connections sync automatically on each provider's interval while the server is running. Set `NESTEGG_SCHEDULER=0` to turn the scheduler off. `npm run sync` syncs every enabled connection once from the command line, or one connection when given its ID.
 

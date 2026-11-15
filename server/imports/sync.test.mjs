@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { createConnection, deleteConnection, replaceCredential, setConnectionEnabled } from "../server/connections/mutations.ts";
-import { initialize } from "../server/db/migrations.ts";
-import { setSyncInterval } from "../server/imports/provider-settings.ts";
-import { syncConnection } from "../server/imports/sync.ts";
-import { ProviderError } from "../server/imports/transaction-provider.ts";
-import { decrypt } from "../server/secrets.ts";
+import { createConnection, deleteConnection, replaceCredential, setConnectionEnabled } from "../connections/mutations.ts";
+import { initialize } from "../db/migrations.ts";
+import { setSyncInterval } from "./provider-settings.ts";
+import { syncConnection } from "./sync.ts";
+import { ProviderError } from "./transaction-provider.ts";
+import { decrypt } from "../secrets.ts";
 
 const key = randomBytes(32);
 const secret = "test_token_plaintext_9f3a";

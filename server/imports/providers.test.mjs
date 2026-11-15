@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { beginConnection, completeConnection, createConnection, disconnectAndDelete, setConnectionEnabled } from "../server/connections/mutations.ts";
-import { initialize, migrations } from "../server/db/migrations.ts";
-import { demo } from "../server/imports/demo.ts";
-import { describeProviderSettings, providerSettings, setProviderEnabled, setProviderSettings } from "../server/imports/provider-settings.ts";
-import { syncConnection } from "../server/imports/sync.ts";
-import { decrypt } from "../server/secrets.ts";
+import { beginConnection, completeConnection, createConnection, disconnectAndDelete, setConnectionEnabled } from "../connections/mutations.ts";
+import { initialize, migrations } from "../db/migrations.ts";
+import { demo } from "./demo.ts";
+import { describeProviderSettings, providerSettings, setProviderEnabled, setProviderSettings } from "./provider-settings.ts";
+import { syncConnection } from "./sync.ts";
+import { decrypt } from "../secrets.ts";
 import { checkAdapter } from "./adapter-contract.mjs";
 
 const key = randomBytes(32);

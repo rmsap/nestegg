@@ -80,10 +80,10 @@ export function deleteUser(db: DatabaseSync, id: number) {
   inTransaction(db, () => {
     if (!db.prepare("SELECT 1 FROM users WHERE id = ?").get(id)) throw new Error("User not found");
     const run = (sql: string) => db.prepare(sql).run(id);
-    run(`DELETE FROM notification_deliveries WHERE target_id IN (SELECT id FROM notification_targets WHERE user_id = ?1)
-      OR event_id IN (SELECT id FROM events WHERE user_id = ?1)`);
-    run(`DELETE FROM notification_matcher_targets WHERE matcher_id IN (SELECT id FROM notification_matchers WHERE user_id = ?1)
-      OR target_id IN (SELECT id FROM notification_targets WHERE user_id = ?1)`);
+    db.prepare(`DELETE FROM notification_deliveries WHERE target_id IN (SELECT id FROM notification_targets WHERE user_id = $user)
+      OR event_id IN (SELECT id FROM events WHERE user_id = $user)`).run({ $user: id });
+    db.prepare(`DELETE FROM notification_matcher_targets WHERE matcher_id IN (SELECT id FROM notification_matchers WHERE user_id = $user)
+      OR target_id IN (SELECT id FROM notification_targets WHERE user_id = $user)`).run({ $user: id });
     run("DELETE FROM notification_targets WHERE user_id = ?");
     run("DELETE FROM notification_matchers WHERE user_id = ?");
     run("DELETE FROM events WHERE user_id = ?");

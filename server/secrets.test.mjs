@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
-import { mkdtempSync, readFileSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { decrypt, encrypt, loadSecretKey } from "../server/secrets.ts";
+import { decrypt, encrypt, loadSecretKey } from "./secrets.ts";
 
 test("encrypt and decrypt round-trip, and fail for a wrong key, purpose or tampered payload", () => {
   const key = randomBytes(32);
@@ -31,7 +31,9 @@ test("loadSecretKey generates a key file once and rejects a malformed environmen
     delete process.env.NESTEGG_SECRET_KEY;
     const first = loadSecretKey(directory);
     assert.equal(first.length, 32);
-    assert.equal(statSync(join(directory, "secret.key")).mode & 0o777, 0o600);
+    if (process.platform !== "win32") {
+      assert.equal(statSync(join(directory, "secret.key")).mode & 0o777, 0o600);
+    }
     assert.equal(readFileSync(join(directory, "secret.key"), "utf8"), first.toString("base64"));
     assert.deepEqual(loadSecretKey(directory), first);
 
@@ -45,5 +47,6 @@ test("loadSecretKey generates a key file once and rejects a malformed environmen
   } finally {
     if (saved === undefined) delete process.env.NESTEGG_SECRET_KEY;
     else process.env.NESTEGG_SECRET_KEY = saved;
+    rmSync(directory, { recursive: true });
   }
 });

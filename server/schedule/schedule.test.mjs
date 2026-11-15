@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { createConnection, setConnectionEnabled } from "../server/connections/mutations.ts";
-import { initialize } from "../server/db/migrations.ts";
-import { setSyncInterval } from "../server/imports/provider-settings.ts";
-import { nextRun } from "../server/schedule/cron.ts";
-import { runDueJobs, runJob, setJobSchedule } from "../server/schedule/jobs.ts";
-import { syncDueConnections } from "../server/schedule/sync-job.ts";
+import { createConnection, setConnectionEnabled } from "../connections/mutations.ts";
+import { initialize } from "../db/migrations.ts";
+import { setSyncInterval } from "../imports/provider-settings.ts";
+import { nextRun } from "./cron.ts";
+import { runDueJobs, runJob, setJobSchedule } from "./jobs.ts";
+import { syncDueConnections } from "./sync-job.ts";
 
 const key = randomBytes(32);
 const T0 = new Date("2026-11-10T12:00:00.000Z");
