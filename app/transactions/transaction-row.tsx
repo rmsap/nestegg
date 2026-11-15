@@ -1,13 +1,15 @@
 "use client";
 
-import { ChevronRight, TriangleExclamationPoint } from "lucide-react";
+import { ChevronRight, Target, TriangleExclamationPoint } from "lucide-react";
 import { useId, useRef, useState, useTransition } from "react";
 import { Chip } from "../../components/ui/chip";
 import { Button } from "../../components/ui/button";
 import { money, uncategorized } from "../../lib/finance";
+import type { GoalChoice } from "../../server/goals/goals";
 import type { Transaction } from "../../server/transactions/queries";
 import { saveTransactionReview } from "./actions";
 import { CategoryChip } from "./category-chip";
+import { GoalSpendPicker } from "./goal-spend-picker";
 
 export type CategoryChoice = { id: number; name: string; color: string };
 
@@ -17,21 +19,25 @@ const dateFormat = new Intl.DateTimeFormat("en-US", {
   month: "short", day: "numeric", timeZone: "UTC",
 });
 
-export function TransactionRow({ transaction, categoryChoices, hasLeadingColumn }: {
+export function TransactionRow({ transaction, categoryChoices, goalChoices, hasLeadingColumn }: {
   transaction: Transaction;
   categoryChoices?: CategoryChoice[];
+  goalChoices?: GoalChoice[];
   hasLeadingColumn: boolean;
 }) {
-  const [expansion, setExpansion] = useState<"memo" | "review" | null>(null);
+  const [expansion, setExpansion] = useState<"memo" | "review" | "goal" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, startTransition] = useTransition();
   const trigger = useRef<HTMLButtonElement>(null);
+  const goalTrigger = useRef<HTMLButtonElement>(null);
   const panelId = useId();
   const { id, merchant, account, date, category, category_id, kind, pending, reviewed, memo } = transaction;
   const canEditCategory = categoryChoices !== undefined && kind === "expense";
   const disclosure = memo ? "memo" : categoryChoices && !pending && !reviewed ? "review" : null;
   const open = disclosure !== null && expansion === disclosure;
   const isMemo = disclosure === "memo";
+  const goalOpen = expansion === "goal";
+  const showGoal = goalChoices && (transaction.goal_name || goalChoices.length > 0);
   const merchantColumn = hasLeadingColumn ? "compact:col-start-2" : "compact:col-start-1";
   const amountColumn = hasLeadingColumn ? "compact:col-start-3" : "compact:col-start-2";
 
@@ -50,7 +56,7 @@ export function TransactionRow({ transaction, categoryChoices, hasLeadingColumn 
         if (message) setError(message);
         else setExpansion(null);
       } catch {
-        setError("Could not save the review. Try again.");
+        setError("Could not save the transaction changes. Try again.");
       }
     });
   }
@@ -58,14 +64,14 @@ export function TransactionRow({ transaction, categoryChoices, hasLeadingColumn 
   return <div className={`col-span-full grid grid-cols-subgrid items-center gap-y-1 border-t border-line py-1.5 wrap-anywhere ${isMemo ? "cursor-pointer" : ""}`}
     onClick={isMemo ? (event) => {
       if (event.target instanceof Element &&
-        !event.target.closest("button, a, input, select, [data-memo-panel]") &&
+        !event.target.closest("button, a, input, select, [data-row-panel]") &&
         !window.getSelection()?.toString()) toggle();
     } : undefined}
     onKeyDown={(event) => {
-      if (event.defaultPrevented || event.key !== "Escape" || saving || !open) return;
+      if (event.defaultPrevented || event.key !== "Escape" || saving || (!open && !goalOpen)) return;
       event.preventDefault();
       setExpansion(null);
-      trigger.current?.focus();
+      (goalOpen ? goalTrigger : trigger).current?.focus();
     }}>
     {disclosure ? <button type="button" ref={trigger}
       className={`grid w-(--review-width) min-h-(--review-width) cursor-pointer place-items-center compact:col-start-1 compact:row-start-1 compact:row-span-2 ${isMemo ? "text-primary-text aria-expanded:[&>svg]:rotate-90" : "rounded-full bg-warning text-warning-text"}`}
@@ -83,13 +89,21 @@ export function TransactionRow({ transaction, categoryChoices, hasLeadingColumn 
       {canEditCategory
         ? <CategoryChip transactionId={id} merchant={merchant} categoryId={category_id} choices={categoryChoices} />
         : categoryChoices ? <Chip>{category}</Chip> : <span>{category}</span>}
+      {showGoal && <button type="button" ref={goalTrigger} aria-expanded={goalOpen}
+        aria-controls={goalOpen ? panelId : undefined}
+        aria-label={transaction.goal_name ? `Goal funds for ${merchant}` : `Use goal funds for ${merchant}`}
+        title={transaction.goal_name ?? "Use goal funds"} disabled={saving}
+        className={`grid size-7 cursor-pointer place-items-center rounded-md text-primary-text hover:bg-accent pointer-coarse:size-11 ${transaction.goal_name ? "bg-accent" : ""}`}
+        onClick={() => setExpansion(goalOpen ? null : "goal")}>
+        <Target size={16} aria-hidden="true" />
+      </button>}
     </div>
     <strong className={`text-right whitespace-nowrap tabular-nums compact:row-start-1 ${amountColumn}`}>{money(transaction.amount_cents)}</strong>
-    {open && isMemo && <div id={panelId} data-memo-panel className={`${expansionCard} cursor-text`}>
+    {open && isMemo && <div id={panelId} data-row-panel className={`${expansionCard} cursor-text`}>
       <strong>Memo</strong>
       <p className="mt-1 whitespace-pre-wrap">{memo}</p>
     </div>}
-    {open && disclosure === "review" && <form id={panelId}
+    {open && disclosure === "review" && <form id={panelId} data-row-panel
       className={`${expansionCard} me-[calc(var(--review-width)+var(--activity-gap))] flex min-w-0 flex-wrap items-center gap-2`}
       onSubmit={(event) => {
       event.preventDefault();
@@ -110,5 +124,9 @@ export function TransactionRow({ transaction, categoryChoices, hasLeadingColumn 
       </Button>
       {error && <small className="basis-full text-danger" role="alert">{error}</small>}
     </form>}
+    {goalChoices && showGoal && goalOpen && <div id={panelId} data-row-panel className={expansionCard}>
+      <GoalSpendPicker transaction={transaction} choices={goalChoices}
+        onSaved={() => setExpansion((current) => current === "goal" ? null : current)} />
+    </div>}
   </div>;
 }

@@ -511,6 +511,30 @@ export const migrations = [
       ALTER TABLE notification_matchers_v9 RENAME TO notification_matchers;
     `,
   },
+  {
+    version: 12,
+    sql: `
+      CREATE TABLE goals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 60),
+        target_cents INTEGER NOT NULL CHECK (target_cents > 0),
+        saved_cents INTEGER NOT NULL DEFAULT 0 CHECK (saved_cents >= 0),
+        account_id INTEGER REFERENCES accounts(id),
+        funding_mode TEXT NOT NULL DEFAULT 'refillable' CHECK (funding_mode IN ('one-time', 'refillable')),
+        state TEXT NOT NULL DEFAULT 'funding' CHECK (state IN ('funding', 'spending', 'closed'))
+      ) STRICT;
+      CREATE INDEX goals_user ON goals(user_id);
+      CREATE INDEX goals_account ON goals(account_id);
+      ALTER TABLE accounts ADD COLUMN goal_buffer_cents INTEGER NOT NULL DEFAULT 0 CHECK (goal_buffer_cents >= 0);
+      CREATE TABLE goal_purchases (
+        transaction_id INTEGER PRIMARY KEY REFERENCES transactions(id) ON DELETE CASCADE,
+        goal_id INTEGER NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+        amount_cents INTEGER NOT NULL CHECK (amount_cents > 0)
+      ) STRICT;
+      CREATE INDEX goal_purchase_goal ON goal_purchases(goal_id);
+    `,
+  },
 ];
 
 export function initialize(db: DatabaseSync) {

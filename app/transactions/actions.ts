@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { readId } from "../../lib/forms";
 import { database } from "../../server/db/connection";
 import { currentUser } from "../../server/session";
+import { GoalFundingError } from "../../server/goals/goals";
+import { spendFromGoal } from "../../server/goals/spending";
 import { saveReview } from "../../server/transactions/mutations";
 
 export async function saveTransactionReview(form: FormData) {
@@ -22,6 +24,22 @@ export async function saveTransactionReview(form: FormData) {
   revalidatePath("/transactions");
   revalidatePath("/budget");
   revalidatePath("/");
+  return null;
+}
+
+export async function saveGoalSpending(form: FormData) {
+  const user = await currentUser();
+  const transactionId = readId(form.get("transaction"));
+  const goalId = readId(form.get("goal"));
+  if (!goalId || !transactionId) return "Choose a goal.";
+  try {
+    spendFromGoal(database(), user.id, goalId, transactionId);
+  } catch (error) {
+    if (error instanceof GoalFundingError) return error.message;
+    throw error;
+  }
+  revalidatePath("/transactions");
+  revalidatePath("/goals");
   return null;
 }
 
