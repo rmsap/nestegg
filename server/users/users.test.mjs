@@ -237,7 +237,7 @@ test("deleting a user removes everything they owned and leaves the other user un
 test("no password or password hash is ever stored in an event", async (t) => {
   const db = open(t);
   const first = "first secret passphrase", second = "second secret passphrase", third = "third secret passphrase";
-  const alice = createUser(db, { username: "alice", password: first });
+  createUser(db, { username: "alice", password: first });
   const bobby = createUser(db, { username: "bobby", password: second });
   assert.equal(authenticate(db, "bobby", "wrong wrong wrong"), null);
   assert.equal(authenticate(db, "ghost", first), null);
